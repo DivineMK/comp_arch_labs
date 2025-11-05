@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
   // Allocate DPUs
   struct dpu_set_t dpu_set, dpu;
   uint32_t nr_of_dpus;
-  DPU_ASSERT(dpu_alloc(NR_DPUS, NULL, &dpu_set));
+  DPU_ASSERT(dpu_alloc(NR_DPUS, "backend=simulator", &dpu_set));
   DPU_ASSERT(
       dpu_get_nr_dpus(dpu_set, &nr_of_dpus)); // Number of DPUs in the DPU set
   printf("Allocated %d DPU(s)\t", nr_of_dpus);
@@ -62,9 +62,7 @@ int main(int argc, char **argv) {
   const unsigned int input_size_dpu =
       divceil(input_size, nr_of_dpus); // Input size per DPU (max.)
   const unsigned int input_size_dpu_8bytes =
-      ((input_size_dpu * sizeof(T)) % 8) != 0
-          ? roundup(input_size_dpu, 8)
-          : input_size_dpu; // Input size per DPU (max.), 8-byte aligned
+      roundup(input_size_dpu, 8); // Input size per DPU (max.), 8-byte aligned
 
   // Input/output allocation in host main memory
   X = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
@@ -79,35 +77,35 @@ int main(int argc, char **argv) {
   // Loop over main kernel
   for (int rep = 0; rep < p.n_warmup + p.n_reps; rep++) {
 
-    printf("Load input data\n");
+    // printf("Load input data\n");
     if (rep >= p.n_warmup)
       start(&timer, 1, rep - p.n_warmup); // Start timer (CPU-DPU transfers)
-    i = 0;
-    // Copy input arrays
-#ifdef SERIAL // Serial transfers
+                                          // i = 0;
+                                          // Copy input arrays
+#ifdef SERIAL                             // Serial transfers
 
     //@@ INSERT SERIAL CPU-DPU TRANSFER HERE (i.e., copy bufferX to DPU MRAM)
-    DPU_FOREACH(dpu_set, dpu) {
+    DPU_FOREACH(dpu_set, dpu, i) {
       DPU_ASSERT(dpu_copy_to(dpu, DPU_MRAM_HEAP_POINTER_NAME, 0,
-                             bufferX + input_size_dpu * i,
-                             input_size_dpu * sizeof(T)));
-      i++;
+                             bufferX + input_size_dpu_8bytes * i,
+                             input_size_dpu_8bytes * sizeof(T)));
     }
 #elif BROADCAST // Broadcast transfers
 
     //@@ INSERT BROADCAST CPU-DPU TRANSFER HERE (i.e., copy bufferX to DPU MRAM)
-    DPU_ASSERT(dpu_broadcast_to(dpu_set, DPU_MRAM_HEAP_POINTER_NAME, 0, bufferA,
-                                input_size_dpu * sizeof(T), DPU_XFER_DEFAULT));
+    DPU_ASSERT(dpu_broadcast_to(dpu_set, DPU_MRAM_HEAP_POINTER_NAME, 0, bufferX,
+                                input_size_dpu_8bytes * sizeof(T),
+                                DPU_XFER_DEFAULT));
 
 #else // Parallel transfers
 
     //@@ INSERT PARALLEL CPU-DPU TRANSFER HERE (i.e., copy bufferX to DPU MRAM)
     DPU_FOREACH(dpu_set, dpu, i) {
-      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferA + input_size_dpu * i));
+      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferX + input_size_dpu_8bytes * i));
     }
-    DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_TO_DPU,
-                             DPU_MRAM_HEAP_POINTER_NAME, 0,
-                             input_size_dpu * sizeof(T), DPU_XFER_DEFAULT));
+    DPU_ASSERT(
+        dpu_push_xfer(dpu_set, DPU_XFER_TO_DPU, DPU_MRAM_HEAP_POINTER_NAME, 0,
+                      input_size_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
 
 #endif
     if (rep >= p.n_warmup)
@@ -123,19 +121,28 @@ int main(int argc, char **argv) {
         stop(&timer, 2); // Stop timer (DPU kernel)
     }*/
 
-    printf("Retrieve results\n");
+    // printf("Retrieve results\n");
     if (rep >= p.n_warmup)
       start(&timer, 3, rep - p.n_warmup); // Start timer (DPU-CPU transfers)
-    i = 0;
-    // Copy output array
-#ifdef SERIAL // Serial transfers
+                                          // i = 0;
+                                          // Copy output array
+#ifdef SERIAL                             // Serial transfers
 
     //@@ INSERT SERIAL DPU-CPU TRANSFER HERE
-
+    DPU_FOREACH(dpu_set, dpu, i) {
+      DPU_ASSERT(dpu_copy_from(dpu, DPU_MRAM_HEAP_POINTER_NAME, 0,
+                               bufferX + input_size_dpu_8bytes * i,
+                               input_size_dpu_8bytes * sizeof(T)));
+    }
 #else // Parallel transfers
 
     //@@ INSERT PARALLEL DPU-CPU TRANSFER HERE
-
+    DPU_FOREACH(dpu_set, dpu, i) {
+      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferX + input_size_dpu_8bytes * i));
+    }
+    DPU_ASSERT(
+        dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, DPU_MRAM_HEAP_POINTER_NAME, 0,
+                      input_size_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
 #endif
     if (rep >= p.n_warmup)
       stop(&timer, 3); // Stop timer (DPU-CPU transfers)
@@ -148,6 +155,12 @@ int main(int argc, char **argv) {
   print(&timer, 2, p.n_reps);
   printf("DPU-CPU ");
   print(&timer, 3, p.n_reps);
+  double time_cpu = timer.time[1] / (1e6 * p.n_reps);
+  double time_dpu = timer.time[3] / (1e6 * p.n_reps);
+  printf("\r\nCPU-DPU bandwidth (GB/s): %f\r\n",
+         (input_size * 8) / (time_cpu * (1 << 30)));
+  printf("DPU-CPU bandwidth (GB/s): %f\r\n",
+         (input_size * 8) / (time_dpu * (1 << 30)));
 
   // Check output
   bool status = true;
