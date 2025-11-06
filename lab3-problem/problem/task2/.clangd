@@ -1,0 +1,4 @@
+If:
+    PathMatch: [.*host.*.c, .*host.*.cpp, .*host.*.h] # Configuration for host binaries
+CompileFlags:
+    Add: [-I/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/upmem-2023.1.0-Linux-x86_64/include/dpu, -L/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/upmem-2023.1.0-Linux-x86_64/lib, -ldpu]
