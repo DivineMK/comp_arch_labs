@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
   X = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
   X_host = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
   T *bufferX = X;
-  unsigned int i = 0;
+  uint32_t i = 0;
 
   // Create an input file with arbitrary data
   read_input(X, input_size);

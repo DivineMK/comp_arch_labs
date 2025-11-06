@@ -1,5 +1,8 @@
 #!/usr/bin/bash
 rm $(dirname "$0")/bin/.*
-TRANSFER=PARALLEL make && cp -f ./bin/host_code{,_parallel}
-TRANSFER=SERIAL make && cp -f ./bin/host_code{,_serial}
-TRANSFER=broadcast make && cp -f ./bin/host_code{,_broadcast}
+for TRANSFER in SERIAL PARALLEL BROADCAST; do
+  transfer=${TRANSFER,,}
+  for i in 1 2 4 8 16 32 64; do
+    TRANSFER=$TRANSFER NR_DPUS=$i make && cp -f ./bin/host_code{,_${transfer}_${i}}
+  done
+done

@@ -77,6 +77,7 @@ int main_kernel1() {
   T *cacheX = (T *)mem_alloc(BLOCK_SIZE);
   T *cacheY = (T *)mem_alloc(BLOCK_SIZE);
 
+  // distribute data to every tasklet -> separated by BLOCK_SIZE * NR_TASKLETS
   for (unsigned int byte_index = base_tasklet;
        byte_index < input_size_dpu_bytes;
        byte_index += BLOCK_SIZE * NR_TASKLETS) {

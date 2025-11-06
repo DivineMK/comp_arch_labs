@@ -8,6 +8,7 @@
 #include <dpu_log.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +20,7 @@
 
 // Define the DPU Binary path as DPU_BINARY here
 #ifndef DPU_BINARY
-#define DPU_BINARY "./bin/dpu_code"
+#define DPU_BINARY "./bin/dpu_code_" _STR(NR_TASKLETS)
 #endif
 
 // Pointer declaration
@@ -95,6 +96,20 @@ int main(int argc, char **argv) {
   read_input(X, Y, input_size);
   memcpy(Y_host, Y, input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
 
+  // printf("input_size_dpu_8bytes: %d\r\n", input_size_dpu_8bytes);
+  // uint32_t input_size_dpu_bytes = input_size_dpu_8bytes * sizeof(T);
+  // for (unsigned int byte_index = 24 * BLOCK_SIZE;
+  //      byte_index < input_size_dpu_bytes;
+  //      byte_index += BLOCK_SIZE * NR_TASKLETS) {
+  //
+  //   // Bound checking
+  //   //@@ INSERT BOUND CHECKING HERE
+  //   uint32_t l_size_bytes = (byte_index + BLOCK_SIZE >= input_size_dpu_bytes)
+  //                               ? (input_size_dpu_bytes - byte_index)
+  //                               : BLOCK_SIZE;
+  //   printf("l_size_bytes: %d\r\n", l_size_bytes);
+  // }
+
   // Loop over main kernel
   for (int rep = 0; rep < p.n_warmup + p.n_reps; rep++) {
 
@@ -118,7 +133,7 @@ int main(int argc, char **argv) {
     input_arguments[nr_of_dpus - 1].size =
         (input_size_8bytes - input_size_dpu_8bytes * (NR_DPUS - 1)) * sizeof(T);
     input_arguments[nr_of_dpus - 1].transfer_size =
-        input_size_dpu_8bytes * sizeof(T);
+        input_size_dpu_8bytes * sizeof(T); // need to be 8-bytes aligned
     input_arguments[nr_of_dpus - 1].kernel = kernel;
     input_arguments[nr_of_dpus - 1].alpha = alpha;
 
