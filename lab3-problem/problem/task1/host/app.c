@@ -28,12 +28,12 @@ static T *X_host;
 
 // Create input arrays
 static void read_input(T *A, unsigned int nr_elements) {
-  // srand(0);
+  srand(0);
   printf("nr_elements\t%u\tnr_bytes\t%lu\n", nr_elements,
          nr_elements * sizeof(T));
   for (unsigned int i = 0; i < nr_elements; i++) {
-    // A[i] = (T) (rand());
-    A[i] = (T)1;
+    A[i] = (T)(rand());
+    // A[i] = (T)1;
   }
 }
 
@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
   X = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
   X_host = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
   T *bufferX = X;
-  uint32_t i = 0;
+  unsigned int i = 0;
 
   // Create an input file with arbitrary data
   read_input(X, input_size);
@@ -80,7 +80,6 @@ int main(int argc, char **argv) {
     // printf("Load input data\n");
     if (rep >= p.n_warmup)
       start(&timer, 1, rep - p.n_warmup); // Start timer (CPU-DPU transfers)
-                                          // i = 0;
                                           // Copy input arrays
 #ifdef SERIAL                             // Serial transfers
 
@@ -124,7 +123,6 @@ int main(int argc, char **argv) {
     // printf("Retrieve results\n");
     if (rep >= p.n_warmup)
       start(&timer, 3, rep - p.n_warmup); // Start timer (DPU-CPU transfers)
-                                          // i = 0;
                                           // Copy output array
 #ifdef SERIAL                             // Serial transfers
 
@@ -151,8 +149,6 @@ int main(int argc, char **argv) {
   // Print timing results
   printf("CPU-DPU ");
   print(&timer, 1, p.n_reps);
-  printf("DPU Kernel ");
-  print(&timer, 2, p.n_reps);
   printf("DPU-CPU ");
   print(&timer, 3, p.n_reps);
   double time_cpu = timer.time[1] / (1e6 * p.n_reps);
@@ -168,6 +164,7 @@ int main(int argc, char **argv) {
     if (X_host[i] != X[i]) {
       status = false;
       printf("%d: %lu -- %lu\n", i, X_host[i], X[i]);
+      break;
     }
   }
   if (status) {
