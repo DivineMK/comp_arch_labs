@@ -1,0 +1,3 @@
+[submodule "lab4/ChampSim"]
+	path = lab4/ChampSim
+	url = https://github.com/CMU-SAFARI/ChampSim
