@@ -1,0 +1,5 @@
+Allocated 1 DPU(s)	NR_TASKLETS	2	BLOCK	10
+nr_elements	2097152
+DPU instructions  = max: 17186976, diff: 0
+CPU Time (ms): 0.797900	CPU-DPU Time (ms): 1.403800	DPU Kernel Time (ms): 783.071100	DPU-CPU Time (ms): 1.520300	2346556380 -- 2346556380
+[[32mOK[0m] Outputs are equal

@@ -20,7 +20,7 @@
 
 // Define the DPU Binary path as DPU_BINARY here
 #ifndef DPU_BINARY
-#define DPU_BINARY "./bin/dpu_code_" _STR(NR_TASKLETS)
+#define DPU_BINARY "./bin/dpu_code"
 #endif
 
 // Pointer declaration
@@ -56,6 +56,7 @@ int main(int argc, char **argv) {
 #if defined(CYCLES) || defined(INSTRUCTIONS)
   double cc = 0;
   double cc_min = 0;
+  double cycles_res = 0;
 #endif
 
   // Allocate DPUs
@@ -96,20 +97,21 @@ int main(int argc, char **argv) {
   read_input(X, Y, input_size);
   memcpy(Y_host, Y, input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
 
-  // printf("input_size_dpu_8bytes: %d\r\n", input_size_dpu_8bytes);
-  // uint32_t input_size_dpu_bytes = input_size_dpu_8bytes * sizeof(T);
-  // for (unsigned int byte_index = 24 * BLOCK_SIZE;
-  //      byte_index < input_size_dpu_bytes;
-  //      byte_index += BLOCK_SIZE * NR_TASKLETS) {
-  //
-  //   // Bound checking
-  //   //@@ INSERT BOUND CHECKING HERE
-  //   uint32_t l_size_bytes = (byte_index + BLOCK_SIZE >= input_size_dpu_bytes)
-  //                               ? (input_size_dpu_bytes - byte_index)
-  //                               : BLOCK_SIZE;
-  //   printf("l_size_bytes: %d\r\n", l_size_bytes);
-  // }
-
+  // Input arguments
+  unsigned int kernel = 0;
+  dpu_arguments_t input_arguments[NR_DPUS];
+  for (i = 0; i < nr_of_dpus - 1; i++) {
+    input_arguments[i].size = input_size_dpu_8bytes * sizeof(T);
+    input_arguments[i].transfer_size = input_size_dpu_8bytes * sizeof(T);
+    input_arguments[i].kernel = kernel;
+    input_arguments[i].alpha = alpha;
+  }
+  input_arguments[nr_of_dpus - 1].size =
+      (input_size_8bytes - input_size_dpu_8bytes * (NR_DPUS - 1)) * sizeof(T);
+  input_arguments[nr_of_dpus - 1].transfer_size =
+      input_size_dpu_8bytes * sizeof(T); // need to be 8-bytes aligned
+  input_arguments[nr_of_dpus - 1].kernel = kernel;
+  input_arguments[nr_of_dpus - 1].alpha = alpha;
   // Loop over main kernel
   for (int rep = 0; rep < p.n_warmup + p.n_reps; rep++) {
 
@@ -120,26 +122,10 @@ int main(int argc, char **argv) {
     if (rep >= p.n_warmup)
       stop(&timer, 0);
 
-    printf("Load input data\n");
-    // Input arguments
-    unsigned int kernel = 0;
-    dpu_arguments_t input_arguments[NR_DPUS];
-    for (i = 0; i < nr_of_dpus - 1; i++) {
-      input_arguments[i].size = input_size_dpu_8bytes * sizeof(T);
-      input_arguments[i].transfer_size = input_size_dpu_8bytes * sizeof(T);
-      input_arguments[i].kernel = kernel;
-      input_arguments[i].alpha = alpha;
-    }
-    input_arguments[nr_of_dpus - 1].size =
-        (input_size_8bytes - input_size_dpu_8bytes * (NR_DPUS - 1)) * sizeof(T);
-    input_arguments[nr_of_dpus - 1].transfer_size =
-        input_size_dpu_8bytes * sizeof(T); // need to be 8-bytes aligned
-    input_arguments[nr_of_dpus - 1].kernel = kernel;
-    input_arguments[nr_of_dpus - 1].alpha = alpha;
+    // printf("Load input data\n");
 
     if (rep >= p.n_warmup)
       start(&timer, 1, rep - p.n_warmup); // Start timer (CPU-DPU transfers)
-    // i = 0;
     // Copy input arguments
     // Parallel transfers
     DPU_FOREACH(dpu_set, dpu, i) {
@@ -186,7 +172,7 @@ int main(int argc, char **argv) {
     if (rep >= p.n_warmup)
       stop(&timer, 1); // Stop timer (CPU-DPU transfers)
 
-    printf("Run program on DPU(s) \n");
+    // printf("Run program on DPU(s) \n");
     // Run DPU kernel
     if (rep >= p.n_warmup) {
       start(&timer, 2, rep - p.n_warmup); // Start timer (DPU kernel)
@@ -208,14 +194,12 @@ int main(int argc, char **argv) {
     }
 #endif
 
-    printf("Retrieve results\n");
+    // printf("Retrieve results\n");
     if (rep >= p.n_warmup)
       start(&timer, 3, rep - p.n_warmup); // Start timer (DPU-CPU transfers)
-    i = 0;
-    // Copy output array
-#ifdef SERIAL // Serial transfers
+                                          // Copy output array
+#ifdef SERIAL                             // Serial transfers
 
-    //@@ INSERT SERIAL DPU-CPU TRANSFER HERE
     DPU_FOREACH(dpu_set, dpu, i) {
       DPU_ASSERT(dpu_copy_from(dpu, DPU_MRAM_HEAP_POINTER_NAME,
                                input_size_dpu_8bytes * sizeof(T),
@@ -240,6 +224,7 @@ int main(int argc, char **argv) {
 
 #if defined(CYCLES) || defined(INSTRUCTIONS)
     dpu_results_t results[nr_of_dpus];
+    dpu_results_t results_min[nr_of_dpus];
     // Parallel transfers
     dpu_results_t *results_retrieve[nr_of_dpus];
     DPU_FOREACH(dpu_set, dpu, i) {
@@ -252,36 +237,59 @@ int main(int argc, char **argv) {
                              DPU_XFER_DEFAULT));
     DPU_FOREACH(dpu_set, dpu, i) {
       results[i].count = 0;
+      results_min[i].count = 0xFFFFFFFFFFFFFFFF;
       // Retrieve tasklet count
       for (unsigned int each_tasklet = 0; each_tasklet < NR_TASKLETS;
            each_tasklet++) {
         if (results_retrieve[i][each_tasklet].count > results[i].count)
           results[i].count = results_retrieve[i][each_tasklet].count;
+        if (results_retrieve[i][each_tasklet].count < results_min[i].count)
+          results_min[i].count = results_retrieve[i][each_tasklet].count;
       }
       free(results_retrieve[i]);
     }
 
     uint64_t max_count = 0;
     uint64_t min_count = 0xFFFFFFFFFFFFFFFF;
+    uint64_t min_max_count = 0;
+    uint64_t min_min_count = 0xFFFFFFFFFFFFFFFF;
     // Print performance results
     if (rep >= p.n_warmup) {
-      i = 0;
-      DPU_FOREACH(dpu_set, dpu) {
+      DPU_FOREACH(dpu_set, dpu, i) {
         if (results[i].count > max_count)
           max_count = results[i].count;
         if (results[i].count < min_count)
           min_count = results[i].count;
-        i++;
+        if (results_min[i].count > min_max_count)
+          min_max_count = results_min[i].count;
+        if (results_min[i].count < min_min_count)
+          min_min_count = results_min[i].count;
       }
       cc += (double)max_count;
-      cc_min += (double)min_count;
+      cc_min += (double)min_min_count;
     }
+
+    uint32_t cycles_retrieve[nr_of_dpus];
+    if (rep >= p.n_warmup) {
+      DPU_FOREACH(dpu_set, dpu, i) {
+        DPU_ASSERT(dpu_prepare_xfer(dpu, &cycles_retrieve[i]));
+      }
+      DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, "CLOCKS_PER_SEC", 0,
+                               sizeof(uint32_t), DPU_XFER_DEFAULT));
+      DPU_FOREACH(dpu_set, dpu, i) { cycles_res += cycles_retrieve[i]; }
+    }
+
 #endif
   }
 #ifdef CYCLES
-  printf("DPU cycles  = %g\n", cc / p.n_reps);
+  printf("DPU cycles = max: %g, min: %g\n", cc / p.n_reps, cc_min / p.n_reps);
+  printf("DPU clocks_per_sec  = %g\n", cycles_res / (p.n_reps * NR_DPUS));
 #elif INSTRUCTIONS
-  printf("DPU instructions  = %g\n", cc / p.n_reps);
+  printf("DPU clocks_per_sec  = %g\n", cycles_res / (p.n_reps * NR_DPUS));
+  printf("DPU instructions  = max: %4.0f, diff: %.12g\n",
+         cc / (p.n_reps * NR_TASKLETS), (cc - cc_min) / p.n_reps);
+  printf("Arithmetic throughput = %g MOP/s\n", cc / (timer.time[2]));
+  // printf("Arithmetic throughput = %g MOP/s\n", cc / (cycles_res / NR_DPUS));
 #endif
 
   // Print timing results
@@ -294,12 +302,23 @@ int main(int argc, char **argv) {
   printf("DPU-CPU ");
   print(&timer, 3, p.n_reps);
 
+  double time_cpu = timer.time[1] / (1e6 * p.n_reps);
+  double time_kernel = timer.time[2] / (1e6 * p.n_reps);
+  double time_dpu = timer.time[3] / (1e6 * p.n_reps);
+  printf("\r\nCPU-DPU bandwidth (GB/s): %f\r\n",
+         (input_size * 8) / (time_cpu * (1 << 30)));
+  printf("DPU kernels bandwidth (GB/s): %f\r\n",
+         (input_size * 8) / (time_kernel * (1 << 30)));
+  printf("DPU-CPU bandwidth (GB/s): %f\r\n",
+         (input_size * 8) / (time_dpu * (1 << 30)));
+
   // Check output
   bool status = true;
   for (i = 0; i < input_size; i++) {
     if (Y_host[i] != Y[i]) {
       status = false;
       printf("%d: %u -- %u\n", i, Y_host[i], Y[i]);
+      break;
     }
   }
   if (status) {

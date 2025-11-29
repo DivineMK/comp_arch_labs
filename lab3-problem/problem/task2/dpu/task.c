@@ -41,6 +41,7 @@ int main_kernel1() {
   unsigned int tasklet_id = me();
 #if PRINT
   printf("tasklet_id = %u\n", tasklet_id);
+  printf("tasklet [%u] stack size: %u\r\n", tasklet_id, check_stack());
 #endif
   if (tasklet_id == 0) {
     mem_reset(); // Reset the heap
@@ -77,11 +78,17 @@ int main_kernel1() {
   T *cacheX = (T *)mem_alloc(BLOCK_SIZE);
   T *cacheY = (T *)mem_alloc(BLOCK_SIZE);
 
-  // distribute data to every tasklet -> separated by BLOCK_SIZE * NR_TASKLETS
-  for (unsigned int byte_index = base_tasklet;
-       byte_index < input_size_dpu_bytes;
+// distribute data to every tasklet -> separated by BLOCK_SIZE * NR_TASKLETS
+#if PRINT
+  uint32_t iter_cnt = 0;
+  uint64_t test = 0, start = 0;
+#endif
+  for (uint32_t byte_index = base_tasklet; byte_index < input_size_dpu_bytes;
        byte_index += BLOCK_SIZE * NR_TASKLETS) {
 
+#if PRINT
+    iter_cnt++;
+#endif
     // Bound checking
     //@@ INSERT BOUND CHECKING HERE
     uint32_t l_size_bytes = (byte_index + BLOCK_SIZE >= input_size_dpu_bytes)
@@ -95,18 +102,30 @@ int main_kernel1() {
     mram_read((__mram_ptr void const *)(mram_base_addr_Y + byte_index), cacheY,
               l_size_bytes);
 
+    // barrier synchronization can timeout leading to crash -> output error
+    // barrier_wait(&my_barrier);
+    //
     // Computer vector addition
     //@@ INSERT CALL TO AXPY FUNCTION HERE
     axpy(cacheY, cacheX, alpha, l_size_bytes >> DIV);
 
+#if defined(CYCLES) || defined(INSTRUCTIONS)
+    result->count = counter_stop(&count); // STOP TIMER
+#endif
     // Write cache to current MRAM block
     //@@ INSERT WRAM-MRAM TRANSFER HERE
+#if PRINT
+    start = perfcounter_get();
+#endif
     mram_write(cacheY, (__mram_ptr void *)(mram_base_addr_Y + byte_index),
                l_size_bytes);
+#if PRINT
+    test = perfcounter_get() - start;
+#endif
   }
-
-#if defined(CYCLES) || defined(INSTRUCTIONS)
-  result->count += counter_stop(&count); // STOP TIMER
+#if PRINT
+  printf("tasklet [%u] iter_cnt: %u\t count: %lu\t test: %lu\r\n", tasklet_id,
+         iter_cnt, DPU_RESULTS[tasklet_id].count, test);
 #endif
 
   return 0;

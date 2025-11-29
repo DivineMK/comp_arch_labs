@@ -1,4 +1,9 @@
 *.pdf
 *.zip
 *.png
+*.S
+*.xz
+traces/
+tracer/
+profile/
 bin/
