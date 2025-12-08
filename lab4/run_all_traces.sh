@@ -17,8 +17,9 @@ EOF
 
 BIN_NAME=""
 CONFIG=""
+LOG_SUFFIX=""
 NUM_JOBS="$(nproc)"
-BUILD_ONLY=0
+DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,9 +35,13 @@ while [[ $# -gt 0 ]]; do
     NUM_JOBS="$2"
     shift 2
     ;;
-  -B | --build)
-    BUILD_ONLY=1
+  -D | --dry-run)
+    DRY_RUN=1
     shift 1
+    ;;
+  -s | --log-suffix)
+    LOG_SUFFIX="$2"
+    shift 2
     ;;
   -h | --help)
     print_help
@@ -51,28 +56,33 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Path to the ChampSim binary
-PARENT_DIR="$(realpath $(dirname $0))/ChampSim"
+PARENT_DIR="$(realpath $(dirname $0))"
 BIN_NAME="${BIN_NAME:-1C.fullBW.nopref}"
 CONFIG="${CONFIG:-${BIN_NAME}.json}"
-BINARY="${PARENT_DIR}/bin/${BIN_NAME}"
+BINARY="${PARENT_DIR}/ChampSim/bin/${BIN_NAME}"
 
+if [[ -n $LOG_SUFFIX ]]; then
+  LOG_SUFFIX="_$LOG_SUFFIX"
+fi
 # Directory containing the trace files
 TRACE_DIR="${PARENT_DIR}/traces"
-LOG_DIR="$(realpath $(dirname $0))/logs"
+LOG_DIR="$(realpath $(dirname $0))/logs/${BIN_NAME}${LOG_SUFFIX}"
 
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo "Dry run"
+  echo "log file: ${LOG_DIR}/${BIN_NAME}${LOG_SUFFIX}_trace_tracename"
+  exit 0
+fi
 mkdir -p "$LOG_DIR"
 # Export the binary path so it's available to the subshell started by xargs
 export BINARY
 export LOG_DIR
+export LOG_SUFFIX
 export BIN_NAME
 
 echo "Configure $(basename $BINARY) with $CONFIG"
-cd "$PARENT_DIR" && ./config.sh prefetcher/ghb_stride/${CONFIG} && make -j
 
-if [ "$BUILD_ONLY" -eq 1 ]; then
-  echo "Build completed. Skipping trace execution."
-  exit 0
-fi
+cd "$PARENT_DIR/ChampSim" && ./config.sh prefetcher/config/${CONFIG} && make -j
 # Check if the binary exists and is executable
 if [ ! -x "$BINARY" ]; then
   echo "Error: ChampSim binary not found or not executable at '$BINARY'"
@@ -90,7 +100,7 @@ run_single_trace() {
   trace_name=$(basename "$trace_file")
   trace_name="${trace_name%.xz}"
   trace_name="${trace_name%.gz}"
-  log_filebase="$LOG_DIR/${BIN_NAME}_${trace_name}"
+  log_filebase="$LOG_DIR/${BIN_NAME}${LOG_SUFFIX}_trace_${trace_name}"
   echo "Running trace: $log_filebase"
   # Run the binary with the trace file
   "$BINARY" --warmup-instructions 10000000 --simulation-instructions 50000000 --json "${log_filebase}.json" -- "$trace_file" 2>&1 >"${log_filebase}.log"
