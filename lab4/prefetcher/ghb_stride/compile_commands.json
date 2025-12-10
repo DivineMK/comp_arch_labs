@@ -1,0 +1,28 @@
+[
+  {
+    "arguments": [
+      "g++",
+      "--std=c++17",
+      "-O3",
+      "-g3",
+      "-Wall",
+      "-Wextra",
+      "-Wshadow",
+      "-Wpedantic",
+      "-Wconversion",
+      "-I/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/labs/lab4/ChampSim/inc",
+      "-isystem",
+      "/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/labs/lab4/ChampSim/vcpkg_installed/x64-linux/include",
+      "-Wno-unused-parameter",
+      "-DCHAMPSIM_MODULE",
+      "-I.csconfig",
+      "-c",
+      "-o",
+      "/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/labs/lab4/ChampSim/.csconfig/modules/prefetcher/ghb_stride/ghb_stride.o",
+      "/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/labs/lab4/ChampSim/prefetcher/ghb_stride/ghb_stride.cc"
+    ],
+    "directory": "/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/labs/lab4/ChampSim",
+    "file": "/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/labs/lab4/ChampSim/prefetcher/ghb_stride/ghb_stride.cc",
+    "output": "/mnt/data/documents/Master/coursework/hs25/227-2210-00L_comp_arch/ex/labs/lab4/ChampSim/.csconfig/modules/prefetcher/ghb_stride/ghb_stride.o"
+  }
+]

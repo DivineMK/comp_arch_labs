@@ -192,7 +192,19 @@ def main():
             position = [
                 pos - (total_width / 2) + (i * bar_width) + (bar_width / 2) for pos in x
             ]
-            ax.bar(position, speedup_values, width=bar_width, label=prefetcher)
+            rects = ax.bar(position, speedup_values, width=bar_width, label=prefetcher)
+
+            # Add labels on top of the bars
+            for rect in rects:
+                height = rect.get_height()
+                ax.annotate(
+                    f"{height:.2f}",
+                    xy=(rect.get_x() + rect.get_width() / 2, height),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha="center",
+                    va="bottom",
+                )
 
         # Formatting
         ax.set_title(f"Prefetcher Speedups for {config} Configuration")
