@@ -24,39 +24,43 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
 
   size_t it_idx, ghb_idx = 0;
 
-  // // FIFO replacement
-  // bool key_in_it = false;
-  // if (index_table.size > 0) {
-  //   for (size_t i = 1; i <= index_table.size; i++) {
-  //     it_idx = (index_table.head - i) % index_table.size;
-  //     if (index_table.buf[it_idx].ip == ip) {
-  //       key_in_it = true;
-  //       break;
-  //     }
-  //   }
-  // }
-  //
-  // if (!key_in_it) {
-  //   index_table.push(ip, ghb.head);
-  //   ghb.push(cl_addr, GHB_SIZE);
-  //   return metadata_in;
-  // }
-  //
-  // // FIFO replacement
-  // ghb_idx = index_table.buf[it_idx].ghb_idx;
-  // index_table.buf[it_idx].ghb_idx = ghb.head;
-  // ////////////////////
+  size_t n_prefetch = PREFETCH_DEPTH * PREFETCH_WIDTH;
+  // index by delta and ip
+  // have a counter to count n0 prefetches (to match ip_stride cases)
+  // have a set to store next prefetches
+  // FIFO replacement
+  bool key_in_it = false;
+  if (index_table.size > 0) {
+    for (size_t i = 1; i <= index_table.size; i++) {
+      it_idx = (index_table.head - i) % index_table.size;
+      if (index_table.buf[it_idx].ip == ip) {
+        key_in_it = true;
+        break;
+      }
+    }
+  }
 
-  // LRU replacement
-  auto found = index_table.check_hit({ip, ghb_idx});
-  if (!found.has_value()) {
-    ghb.push(delta, GHB_SIZE);
-    index_table.fill({ip, ghb.head});
+  if (!key_in_it) {
+    index_table.push(ip, ghb.head);
+    ghb.push(cl_addr, GHB_SIZE);
     return metadata_in;
   }
 
-  ghb_idx = found->ghb_idx;
-  index_table.fill({ip, ghb.head});
+  // FIFO replacement
+  ghb_idx = index_table.buf[it_idx].ghb_idx;
+  index_table.buf[it_idx].ghb_idx = ghb.head;
+  ////////////////////
+
+  // LRU replacement
+  // auto found = index_table.check_hit({ip, ghb_idx});
+  // if (!found.has_value()) {
+  //   ghb.push(delta, GHB_SIZE);
+  //   index_table.fill({ip, ghb.head});
+  //   return metadata_in;
+  // }
+  //
+  // ghb_idx = found->ghb_idx;
+  // index_table.fill({ip, ghb.head});
   ////////////////////
 
   ghb.push(delta, ghb_idx);

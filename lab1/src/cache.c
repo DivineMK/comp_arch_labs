@@ -1,5 +1,6 @@
 #include "cache.h"
 #include "shell.h"
+#include <filesystem>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,7 @@ void init_cache(cache_t *cache, uint32_t cache_size, uint32_t block_size,
   cache->n_bit_cache = ilog2(cache->cache_size);
   cache->n_bit_block = ilog2(block_size);
   cache->n_bit_assoc = ilog2(cache->associativity);
+  cache->n_bit_set = ilog2(cache_size / (associativity * block_size));
 
   cache->cached_array = malloc(sizeof(cache_line_t) * cache_size / block_size);
   memset(cache->cached_array, 0,
@@ -182,15 +184,20 @@ uint8_t ilog2(uint32_t val) {
   return res;
 }
 
+// address = tag | index | block_offset
+uint32_t mask(uint32_t bits) { return ((1 << bits) - 1); }
+
+// idx = addr & (idx + block_offset) >> block_offset
 uint32_t get_index(cache_t *cache, uint32_t addr) {
-  return (addr & ((1 << (cache->n_bit_cache - cache->n_bit_assoc)) - 1)) >>
+  return (addr & mask(cache->n_bit_cache - cache->n_bit_assoc)) >>
          cache->n_bit_block;
 }
 
+// tag = addr >> (set + block_offset)
 uint32_t get_tag(cache_t *cache, uint32_t addr) {
   return addr >> (cache->n_bit_cache - cache->n_bit_assoc);
 }
 
 uint32_t get_block_offset(cache_t *cache, uint32_t addr) {
-  return (addr & ((1 << cache->n_bit_block) - 1)) >> 2;
+  return (addr & mask(cache->n_bit_block)) >> 2; // 32-bit granularity
 }

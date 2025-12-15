@@ -15,6 +15,7 @@ using idx_t = size_t;
 
 struct index_table_entry {
   champsim::address ip{0}; // the IP we're tracking
+  champsim::block_number::difference_type delta{0};
   idx_t ghb_idx{0};
   auto index() const {
     using namespace champsim::data::data_literals;
@@ -33,8 +34,11 @@ struct ghb_entry {
 
 // Index table circular buffer
 template <size_t N> struct it_cb {
-  void push(const champsim::address &ip, idx_t ghb_idx) {
+  void push(const champsim::address &ip,
+            const champsim::block_number::difference_type delta,
+            idx_t ghb_idx) {
     buf[head].ip = ip;
+    buf[head].delta = ip;
     buf[head].ghb_idx = ghb_idx;
     head = (head + 1) % N;
 

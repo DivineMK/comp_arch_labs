@@ -46,6 +46,7 @@ typedef struct {
   uint8_t n_bit_cache;
   uint8_t n_bit_block;
   uint8_t n_bit_assoc;
+  uint8_t n_bit_set;
 } cache_t;
 
 typedef struct {
