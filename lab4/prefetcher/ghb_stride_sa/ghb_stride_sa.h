@@ -27,7 +27,7 @@ struct index_table_entry {
 
 struct ghb_entry {
   champsim::block_number cl_addr{0}; // the cache line
-  idx_t prev_access_id{0};
+  idx_t prev{0};
 };
 
 // Index table circular buffer
@@ -48,9 +48,9 @@ template <size_t N> struct it_cb {
 
 // GHB circular buffer
 template <size_t N> struct ghb_cb {
-  void push(const champsim::block_number &cl_addr, idx_t prev_access_id) {
+  void push(const champsim::block_number &cl_addr, idx_t prev) {
     buf[head].cl_addr = cl_addr;
-    buf[head].prev_access_id = prev_access_id;
+    buf[head].prev = prev;
     head = (head + 1) % N;
 
     if (size < N)
@@ -80,9 +80,9 @@ struct ghb_stride_sa : public champsim::modules::prefetcher {
   std::optional<lookahead_entry> active_lookahead;
 
   ghb_cb<GHB_SIZE> ghb;
-  // it_cb<IT_SIZE> index_table; // FIFO
-  champsim::msl::lru_table<index_table_entry> index_table{IT_SIZE,
-                                                          IT_WAYS}; // LRU
+  it_cb<IT_SIZE> index_table; // FIFO
+  // champsim::msl::lru_table<index_table_entry> index_table{IT_SIZE,
+  //                                                         IT_WAYS}; // LRU
 
 public:
   using champsim::modules::prefetcher::prefetcher;

@@ -1,9 +1,12 @@
 #include "ghb_dc.h"
+#include "champsim.h"
 #include "dpc_api.h"
 
 #include "cache.h"
+#include <array>
 #include <cstdint>
 #include <sys/types.h>
+#include <vector>
 
 uint16_t cycle_cnt = 0;
 uint8_t start = 1;
@@ -15,7 +18,8 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
                                  access_type type, uint32_t metadata_in) {
 
   if (start == 1) {
-    old_miss_addr = addr;
+    miss_addr_old = addr;
+    start = 0;
     return 0;
   }
 
@@ -23,17 +27,14 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
       champsim::offset(addr, miss_addr_old);
 
   size_t it_idx, ghb_idx = 0;
-
-  size_t n_prefetch = PREFETCH_DEPTH * PREFETCH_WIDTH;
-  // index by delta and ip
-  // have a counter to count n0 prefetches (to match ip_stride cases)
-  // have a set to store next prefetches
+  // index by both delta and ip
   // FIFO replacement
   bool key_in_it = false;
   if (index_table.size > 0) {
     for (size_t i = 1; i <= index_table.size; i++) {
       it_idx = (index_table.head - i) % index_table.size;
-      if (index_table.buf[it_idx].ip == ip) {
+      if (index_table.buf[it_idx].ip == ip &&
+          index_table.buf[it_idx].delta == delta) {
         key_in_it = true;
         break;
       }
@@ -41,90 +42,54 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
   }
 
   if (!key_in_it) {
-    index_table.push(ip, ghb.head);
-    ghb.push(cl_addr, GHB_SIZE);
+    index_table.push(ip, delta, ghb.head);
+    ghb.push(delta, GHB_SIZE);
     return metadata_in;
   }
 
-  // FIFO replacement
+  // have a counter to count n0 prefetches (to match ip_stride cases)
+  // (optional) have a set to store next prefetches
+  size_t counter = PREFETCH_DEPTH * PREFETCH_WIDTH;
+
   ghb_idx = index_table.buf[it_idx].ghb_idx;
   index_table.buf[it_idx].ghb_idx = ghb.head;
-  ////////////////////
-
-  // LRU replacement
-  // auto found = index_table.check_hit({ip, ghb_idx});
-  // if (!found.has_value()) {
-  //   ghb.push(delta, GHB_SIZE);
-  //   index_table.fill({ip, ghb.head});
-  //   return metadata_in;
-  // }
-  //
-  // ghb_idx = found->ghb_idx;
-  // index_table.fill({ip, ghb.head});
-  ////////////////////
-
   ghb.push(delta, ghb_idx);
 
+  // start from prev ghb entry
   champsim::block_number::difference_type delta_cur{ghb.buf[ghb_idx].delta},
       delta_prev;
-  champsim::block_number::difference_type tmp_stride = 0, stride = 0;
 
-  uint8_t confidence = 0;
+  size_t pref_cnt_width{0};
+  std::array<champsim::address, PREFETCH_DEPTH * PREFETCH_WIDTH> prefetches;
+  uint8_t prefetches_head{0};
+  size_t ghb_idx_prev = ghb.head - 1;
 
-  while (ghb_idx != GHB_SIZE && confidence < CONFIDENCE) {
-    ghb_idx = ghb.buf[ghb_idx].prev_access_id;
-    if (ghb_idx == GHB_SIZE)
-      return metadata_in;
+  size_t ghb_tmp = 0;
 
-    cl_addr_prev = ghb.buf[ghb_idx].cl_addr;
-    tmp_stride = champsim::offset(cl_addr_prev, cl_addr_cur);
+  while (counter > 0) {
+    // check next starting point
+    ghb_idx = ghb.buf[ghb_idx].prev;
 
-    cl_addr_prev = cl_addr_cur;
-    if (confidence == 0) {
-      stride = tmp_stride;
-    } else if (stride != tmp_stride) {
-      return metadata_in;
+    ghb_tmp = (ghb_idx_prev > ghb_idx) ? (ghb_idx_prev - ghb_idx)
+                                       : (GHB_SIZE - (ghb_idx - ghb_idx_prev));
+    assert(ghb_tmp < GHB_SIZE);
+
+    if (ghb_idx != GHB_SIZE) {
+      pref_cnt_width = (ghb_tmp < counter) ? ghb_tmp : counter;
+      assert(pref_cnt_width < GHB_SIZE);
+
+      for (size_t i = pref_cnt_width; i > 0; i--) {
+        // where to start??
+        prefetches[prefetches_head] = ghb.buf[ghb_idx - i];
+        prefetches_head++;
+      }
+      counter -= pref_cnt_width;
     }
-    confidence++;
+    counter--;
   }
 
-  if (confidence == CONFIDENCE && stride != 0) {
-    // active_lookahead = {champsim::address{cl_addr}, stride, PREFETCH_DEGREE};
-    active_lookahead = {
-        champsim::address{cl_addr + (PREFETCH_DISTANCE - 1) * stride}, stride,
-        PREFETCH_DEGREE};
-  }
   return metadata_in;
 }
-
-// void ghb_dc::adjust_degree() {
-//   if (intern_->sim_stats.pf_issued == 0)
-//     return;
-//   uint8_t accuracy = static_cast<uint8_t>((100 *
-//   intern_->sim_stats.pf_useful) /
-//                                           intern_->sim_stats.pf_issued);
-//   uint8_t bandwidth = static_cast<uint8_t>((get_dram_bw() * 100) / 16);
-//   if (bandwidth >= 75) {
-//     if (accuracy < 50)
-//       PREFETCH_DEGREE -= 2;
-//     else if (accuracy < 90)
-//       PREFETCH_DEGREE -= 1;
-//   } else if (bandwidth < 25) {
-//     if (accuracy >= 90)
-//       PREFETCH_DEGREE += 2;
-//     else if (accuracy >= 50)
-//       PREFETCH_DEGREE += 1;
-//   } else {
-//     if (accuracy >= 90)
-//       PREFETCH_DEGREE += 1;
-//     else if (accuracy < 50)
-//       PREFETCH_DEGREE -= 1;
-//   }
-//   PREFETCH_DEGREE = (PREFETCH_DEGREE < 1)   ? 1
-//                     : (PREFETCH_DEGREE > 6) ? 6
-//                                             : PREFETCH_DEGREE;
-// }
-
 void ghb_dc::prefetcher_cycle_operate() {
   // if (cycle_cnt < 1000)
   //   cycle_cnt++;

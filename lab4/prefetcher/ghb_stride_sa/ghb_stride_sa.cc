@@ -14,40 +14,46 @@ uint32_t ghb_stride_sa::prefetcher_cache_operate(
 
   size_t it_idx, ghb_idx = 0;
 
-  // // FIFO replacement
-  // bool key_in_it = false;
-  // if (index_table.size > 0) {
-  //   for (size_t i = 1; i <= index_table.size; i++) {
-  //     it_idx = (index_table.head - i) % index_table.size;
-  //     if (index_table.buf[it_idx].ip == ip) {
-  //       key_in_it = true;
-  //       break;
-  //     }
-  //   }
-  // }
-  //
-  // if (!key_in_it) {
-  //   index_table.push(ip, ghb.head);
-  //   ghb.push(cl_addr, GHB_SIZE);
-  //   return metadata_in;
-  // }
-  //
-  // // FIFO replacement
-  // ghb_idx = index_table.buf[it_idx].ghb_idx;
-  // index_table.buf[it_idx].ghb_idx = ghb.head;
-  // ////////////////////
+  // FIFO replacement
+  bool key_in_it = false;
+  if (index_table.size > 0) {
+    for (size_t i = 1; i <= index_table.size; i++) {
+      // need to handle unsigned
+      it_idx = (index_table.head > i)
+                   ? (index_table.head - i)
+                   // only happens when size = N
+                   : (index_table.size - (i - index_table.head));
 
-  // LRU replacement
-  auto found = index_table.check_hit({ip, ghb_idx});
-  if (!found.has_value()) {
+      assert(it_idx < IT_SIZE);
+      if (index_table.buf[it_idx].ip == ip) {
+        key_in_it = true;
+        break;
+      }
+    }
+  }
+
+  if (!key_in_it) {
+    index_table.push(ip, ghb.head);
     ghb.push(cl_addr, GHB_SIZE);
-    index_table.fill({ip, ghb.head});
     return metadata_in;
   }
 
-  ghb_idx = found->ghb_idx;
-  index_table.fill({ip, ghb.head});
+  // FIFO replacement
+  ghb_idx = index_table.buf[it_idx].ghb_idx;
+  index_table.buf[it_idx].ghb_idx = ghb.head;
   ////////////////////
+
+  // // LRU replacement
+  // auto found = index_table.check_hit({ip, ghb_idx});
+  // if (!found.has_value()) {
+  //   ghb.push(cl_addr, GHB_SIZE);
+  //   index_table.fill({ip, ghb.head});
+  //   return metadata_in;
+  // }
+  //
+  // ghb_idx = found->ghb_idx;
+  // index_table.fill({ip, ghb.head});
+  // ////////////////////
 
   ghb.push(cl_addr, ghb_idx);
 
@@ -57,7 +63,7 @@ uint32_t ghb_stride_sa::prefetcher_cache_operate(
   uint8_t confidence = 0;
 
   while (ghb_idx != GHB_SIZE && confidence < CONFIDENCE) {
-    ghb_idx = ghb.buf[ghb_idx].prev_access_id;
+    ghb_idx = ghb.buf[ghb_idx].prev;
     if (ghb_idx == GHB_SIZE)
       return metadata_in;
 

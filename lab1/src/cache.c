@@ -1,6 +1,5 @@
 #include "cache.h"
 #include "shell.h"
-#include <filesystem>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
