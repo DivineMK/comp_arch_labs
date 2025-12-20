@@ -76,6 +76,9 @@ struct ghb_dc : public champsim::modules::prefetcher {
   ghb_cb<GHB_SIZE> ghb;
   it_cb<IT_SIZE> index_table; // FIFO
 
+  std::array<champsim::address, PREFETCH_DEPTH * PREFETCH_WIDTH> prefetches;
+  uint8_t prefetches_head{0};
+
 public:
   using champsim::modules::prefetcher::prefetcher;
 

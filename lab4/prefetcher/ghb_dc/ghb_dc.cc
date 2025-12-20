@@ -5,12 +5,17 @@
 #include "cache.h"
 #include <array>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <sys/types.h>
-#include <vector>
 
-uint16_t cycle_cnt = 0;
+static uint16_t cycle_cnt = 0;
 uint8_t start = 1;
 champsim::address miss_addr_old;
+
+template <typename T> T unsigned_sub(T a, T b, T limit) {
+  return (a >= b) ? (a - b) : (limit - (b - a));
+}
 
 uint32_t
 ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
@@ -50,84 +55,74 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
   // have a counter to count n0 prefetches (to match ip_stride cases)
   // (optional) have a set to store next prefetches
   size_t counter = PREFETCH_DEPTH * PREFETCH_WIDTH;
+  prefetches_head = 0;
 
   ghb_idx = index_table.buf[it_idx].ghb_idx;
   index_table.buf[it_idx].ghb_idx = ghb.head;
   ghb.push(delta, ghb_idx);
 
-  // start from prev ghb entry
-  champsim::block_number::difference_type delta_cur{ghb.buf[ghb_idx].delta},
-      delta_prev;
-
   size_t pref_cnt_width{0};
-  std::array<champsim::address, PREFETCH_DEPTH * PREFETCH_WIDTH> prefetches;
-  uint8_t prefetches_head{0};
-  size_t ghb_idx_prev = ghb.head - 1;
-
+  size_t ghb_idx_cur = ghb.head - 1; // ghb.head >= 1
   size_t ghb_tmp = 0;
 
-  while (counter > 0) {
+  champsim::block_number cl_addr = champsim::block_number{addr};
+  while (counter > 0 && ghb_idx != GHB_SIZE) {
+    ghb_tmp = unsigned_sub(ghb_idx_cur, ghb_idx, GHB_SIZE);
+
+    if (ghb_tmp >= GHB_SIZE) {
+      fprintf(stderr, "ghb_tmp: %ld, ghb_idx: %ld, ghb_idx_prev: %ld\r\n",
+              ghb_tmp, ghb_idx, ghb_idx_cur);
+      std::abort();
+    }
+
+    pref_cnt_width = (ghb_tmp <= counter) ? ghb_tmp : counter;
+
+    if (pref_cnt_width >= GHB_SIZE) {
+      fprintf(stderr, "pref_cnt_width: %ld, counter: %ld\r\n", pref_cnt_width,
+              counter);
+      std::abort();
+    }
+
+    // pref_cnt_width >= 1
+    for (size_t i = 1; i < pref_cnt_width; i++) {
+      prefetches[prefetches_head++] =
+          champsim::address{cl_addr + ghb.buf[ghb_idx + i].delta};
+      // fprintf(stderr, "test: %ld\r\n",
+      //         champsim::address{champsim::block_number{0} +
+      //                           champsim::block_number::difference_type{1}});
+      // std::abort();
+    }
+    prefetches[prefetches_head++] =
+        champsim::address{cl_addr + ghb.buf[ghb_idx].delta};
+    counter -= pref_cnt_width;
     // check next starting point
     ghb_idx = ghb.buf[ghb_idx].prev;
-
-    ghb_tmp = (ghb_idx_prev > ghb_idx) ? (ghb_idx_prev - ghb_idx)
-                                       : (GHB_SIZE - (ghb_idx - ghb_idx_prev));
-    assert(ghb_tmp < GHB_SIZE);
-
-    if (ghb_idx != GHB_SIZE) {
-      pref_cnt_width = (ghb_tmp < counter) ? ghb_tmp : counter;
-      assert(pref_cnt_width < GHB_SIZE);
-
-      for (size_t i = pref_cnt_width; i > 0; i--) {
-        // where to start??
-        prefetches[prefetches_head] = ghb.buf[ghb_idx - i];
-        prefetches_head++;
-      }
-      counter -= pref_cnt_width;
-    }
-    counter--;
   }
 
   return metadata_in;
 }
 void ghb_dc::prefetcher_cycle_operate() {
-  // if (cycle_cnt < 1000)
-  //   cycle_cnt++;
-  // else {
-  //   cycle_cnt = 0;
-  //   adjust_degree();
-  // }
-
   // If a lookahead is active
-  if (active_lookahead.has_value()) {
-    auto [old_pf_address, stride, degree] = active_lookahead.value();
-    assert(degree > 0);
-    if (stride == 0)
-      return;
+  if (prefetches_head == 0)
+    return;
 
-    champsim::address pf_address{champsim::block_number{old_pf_address} +
-                                 stride};
-
+  champsim::address old_pf_address{prefetches[0]};
+  for (uint8_t i = 0; i < prefetches_head; i++) {
     // If the next step would exceed the degree or run off the page, stop
     if (intern_->virtual_prefetch ||
-        champsim::page_number{pf_address} ==
+        champsim::page_number{prefetches[i]} ==
             champsim::page_number{old_pf_address}) {
       // check the MSHR occupancy to decide if we're going to prefetch to this
       // level or not
-      const bool mshr_under_light_load =
-          intern_->get_mshr_occupancy_ratio() < 0.5;
-      // const bool mshr_under_light_load = true;
-      const bool success = prefetch_line(pf_address, mshr_under_light_load, 0);
-      if (success)
-        active_lookahead = {pf_address, stride, degree - 1};
-      // If we fail, try again next cycle
-
-      if (active_lookahead->degree == 0) {
-        active_lookahead.reset();
-      }
-    } else {
-      active_lookahead.reset();
-    }
+      // const bool mshr_under_light_load =
+      //     intern_->get_mshr_occupancy_ratio() < 0.5;
+      const bool mshr_under_light_load = true;
+      const bool success =
+          prefetch_line(prefetches[i], mshr_under_light_load, 0);
+      // consider using success
+      old_pf_address = prefetches[i];
+    } else
+      continue;
   }
 }
 

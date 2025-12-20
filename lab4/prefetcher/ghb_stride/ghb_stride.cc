@@ -2,6 +2,7 @@
 
 #include "cache.h"
 #include <cstdint>
+#include <fmt/core.h>
 
 uint32_t ghb_stride::prefetcher_cache_operate(
     champsim::address addr, champsim::address ip, uint8_t cache_hit,
@@ -16,11 +17,15 @@ uint32_t ghb_stride::prefetcher_cache_operate(
   if (index_table.size > 0) {
     for (size_t i = 1; i <= index_table.size; i++) {
       // need to handle unsigned
-      it_idx = (index_table.head > i)
+      it_idx = (index_table.head >= i)
                    ? (index_table.head - i)
                    // only happens when size = N
                    : (index_table.size - (i - index_table.head));
-      assert(it_idx < IT_SIZE);
+
+      if (it_idx >= IT_SIZE) {
+        fprintf(stderr, "it_idx: %ld, size: %ld\r\n", it_idx, index_table.size);
+        std::abort();
+      }
 
       if (index_table.buf[it_idx].ip == ip) {
         key_in_it = true;

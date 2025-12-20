@@ -82,7 +82,10 @@ export BIN_NAME
 
 echo "Configure $(basename $BINARY) with $CONFIG"
 
-cd "$PARENT_DIR/ChampSim" && ./config.sh prefetcher/config/${CONFIG} && make -j
+if ! (cd "$PARENT_DIR/ChampSim" && ./config.sh prefetcher/config/${CONFIG} && make -j); then
+  echo "Error: Configuration or compilation failed!"
+  exit 1
+fi
 # Check if the binary exists and is executable
 if [ ! -x "$BINARY" ]; then
   echo "Error: ChampSim binary not found or not executable at '$BINARY'"
