@@ -65,7 +65,7 @@ template <size_t N> struct ghb_cb {
 struct ghb_stride : public champsim::modules::prefetcher {
 
   struct lookahead_entry {
-    champsim::block_number cl_addr{0};
+    champsim::address address{0};
     champsim::address::difference_type stride{0};
     int degree = 0; // degree remaining
   };
