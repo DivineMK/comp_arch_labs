@@ -21,15 +21,14 @@ struct index_table_entry {
 
 struct ghb_entry {
   champsim::block_number::difference_type delta{0}; // delta correlation
+  champsim::block_number cl_addr{0};                // delta correlation
   idx_t prev{0};
 };
 
 // Index table circular buffer
 template <size_t N> struct it_cb {
-  void push(const champsim::address &ip,
-            const champsim::block_number::difference_type &delta,
+  void push(const champsim::block_number::difference_type &delta,
             idx_t ghb_idx) {
-    buf[head].ip = ip;
     buf[head].delta = delta;
     buf[head].ghb_idx = ghb_idx;
     head = (head + 1) % N;
@@ -41,13 +40,14 @@ template <size_t N> struct it_cb {
   index_table_entry buf[N];
   size_t head = 0;
   size_t size = 0;
-  const size_t capacity = N;
 };
 
 // GHB circular buffer
 template <size_t N> struct ghb_cb {
-  void push(const champsim::block_number::difference_type &delta, idx_t prev) {
+  void push(const champsim::block_number::difference_type &delta,
+            const champsim::block_number cl_addr, idx_t prev) {
     buf[head].delta = delta;
+    buf[head].cl_addr = cl_addr;
     buf[head].prev = prev;
     head = (head + 1) % N;
 

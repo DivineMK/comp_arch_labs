@@ -10,7 +10,7 @@
 #include <sys/types.h>
 
 static uint16_t cycle_cnt = 0;
-uint8_t start = 1;
+static uint8_t start = 1;
 champsim::address miss_addr_old;
 
 template <typename T> T unsigned_sub(T a, T b, T limit) {
@@ -30,6 +30,7 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
 
   champsim::block_number::difference_type delta =
       champsim::offset(addr, miss_addr_old);
+  champsim::block_number cl_addr = champsim::block_number{addr};
 
   size_t it_idx, ghb_idx = 0;
   // index by both delta and ip
@@ -38,8 +39,7 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
   if (index_table.size > 0) {
     for (size_t i = 1; i <= index_table.size; i++) {
       it_idx = (index_table.head - i) % index_table.size;
-      if (index_table.buf[it_idx].ip == ip &&
-          index_table.buf[it_idx].delta == delta) {
+      if (index_table.buf[it_idx].delta == delta) {
         key_in_it = true;
         break;
       }
@@ -47,8 +47,8 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
   }
 
   if (!key_in_it) {
-    index_table.push(ip, delta, ghb.head);
-    ghb.push(delta, GHB_SIZE);
+    index_table.push(delta, ghb.head);
+    ghb.push(delta, cl_addr, GHB_SIZE);
     return metadata_in;
   }
 
@@ -57,21 +57,36 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
   size_t counter = PREFETCH_DEPTH * PREFETCH_WIDTH;
   prefetches_head = 0;
 
-  ghb_idx = index_table.buf[it_idx].ghb_idx;
+  // check if ghb_idx point to itself or point to different delta
+  if (ghb.head == index_table.buf[it_idx].ghb_idx ||
+      delta != ghb.buf[index_table.buf[it_idx].ghb_idx].delta)
+    ghb_idx = GHB_SIZE;
+  else
+    ghb_idx = index_table.buf[it_idx].ghb_idx;
+
   index_table.buf[it_idx].ghb_idx = ghb.head;
-  ghb.push(delta, ghb_idx);
+
+  size_t ghb_idx_prev = ghb.head, ghb_idx_cur = ghb_idx;
+
+  ghb.push(delta, cl_addr, ghb_idx);
 
   size_t pref_cnt_width{0};
-  size_t ghb_idx_cur = ghb.head - 1; // ghb.head >= 1
   size_t ghb_tmp = 0;
+  size_t count = 0;
 
-  champsim::block_number cl_addr = champsim::block_number{addr};
-  while (counter > 0 && ghb_idx != GHB_SIZE) {
-    ghb_tmp = unsigned_sub(ghb_idx_cur, ghb_idx, GHB_SIZE);
+  while (counter > 0 && ghb_idx_cur != GHB_SIZE) {
+
+    if (count >= PREFETCH_DEPTH * PREFETCH_WIDTH) {
+      fprintf(stderr, "ghb_tmp: %ld, ghb_idx_cur: %ld, ghb_idx_prev: %ld\r\n",
+              ghb_tmp, ghb_idx_cur, ghb_idx_prev);
+      fflush(stderr);
+      std::abort();
+    }
+    ghb_tmp = unsigned_sub(ghb_idx_prev, ghb_idx_cur, GHB_SIZE);
 
     if (ghb_tmp >= GHB_SIZE) {
-      fprintf(stderr, "ghb_tmp: %ld, ghb_idx: %ld, ghb_idx_prev: %ld\r\n",
-              ghb_tmp, ghb_idx, ghb_idx_cur);
+      fprintf(stderr, "ghb_tmp: %ld, ghb_idx_cur: %ld, ghb_idx_prev: %ld\r\n",
+              ghb_tmp, ghb_idx_cur, ghb_idx_prev);
       std::abort();
     }
 
@@ -83,26 +98,27 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
       std::abort();
     }
 
-    // pref_cnt_width >= 1
     for (size_t i = 1; i < pref_cnt_width; i++) {
       prefetches[prefetches_head++] =
-          champsim::address{cl_addr + ghb.buf[ghb_idx + i].delta};
+          champsim::address{ghb.buf[ghb_idx_cur + i].cl_addr};
       // fprintf(stderr, "test: %ld\r\n",
       //         champsim::address{champsim::block_number{0} +
       //                           champsim::block_number::difference_type{1}});
       // std::abort();
     }
     prefetches[prefetches_head++] =
-        champsim::address{cl_addr + ghb.buf[ghb_idx].delta};
+        champsim::address{ghb.buf[ghb_idx_cur].cl_addr};
     counter -= pref_cnt_width;
     // check next starting point
-    ghb_idx = ghb.buf[ghb_idx].prev;
+    ghb_idx_prev = ghb_idx_cur;
+    ghb_idx_cur = ghb.buf[ghb_idx_cur].prev;
+    count++;
   }
 
   return metadata_in;
 }
 void ghb_dc::prefetcher_cycle_operate() {
-  // If a lookahead is active
+  // check if any prefetches available
   if (prefetches_head == 0)
     return;
 

@@ -83,9 +83,8 @@ uint32_t ghb_stride::prefetcher_cache_operate(
 
   if (confidence == CONFIDENCE && stride != 0) {
     // active_lookahead = {champsim::address{cl_addr}, stride, PREFETCH_DEGREE};
-    active_lookahead = {
-        champsim::address{cl_addr + (PREFETCH_DISTANCE - 1) * stride}, stride,
-        PREFETCH_DEGREE};
+    active_lookahead = {cl_addr + (PREFETCH_DISTANCE - 1) * stride, stride,
+                        PREFETCH_DEGREE};
   }
   return metadata_in;
 }
@@ -98,8 +97,7 @@ void ghb_stride::prefetcher_cycle_operate() {
     if (stride == 0)
       return;
 
-    champsim::address pf_address{champsim::block_number{old_pf_address} +
-                                 stride};
+    champsim::address pf_address{old_pf_address + stride};
 
     // If the next step would exceed the degree or run off the page, stop
     if (intern_->virtual_prefetch ||
@@ -112,7 +110,8 @@ void ghb_stride::prefetcher_cycle_operate() {
       const bool mshr_under_light_load = true;
       const bool success = prefetch_line(pf_address, mshr_under_light_load, 0);
       if (success)
-        active_lookahead = {pf_address, stride, degree - 1};
+        active_lookahead = {champsim::block_number{pf_address}, stride,
+                            degree - 1};
       // If we fail, try again next cycle
 
       if (active_lookahead->degree == 0) {

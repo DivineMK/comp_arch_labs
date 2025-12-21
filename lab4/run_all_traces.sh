@@ -68,11 +68,6 @@ fi
 TRACE_DIR="${PARENT_DIR}/traces"
 LOG_DIR="$(realpath $(dirname $0))/logs/${BIN_NAME}${LOG_SUFFIX}"
 
-if [ "$DRY_RUN" -eq 1 ]; then
-  echo "Dry run"
-  echo "log file: ${LOG_DIR}/${BIN_NAME}${LOG_SUFFIX}_trace_tracename"
-  exit 0
-fi
 mkdir -p "$LOG_DIR"
 # Export the binary path so it's available to the subshell started by xargs
 export BINARY
@@ -91,6 +86,12 @@ if [ ! -x "$BINARY" ]; then
   echo "Error: ChampSim binary not found or not executable at '$BINARY'"
   echo "Please build the project first by running './config.sh && make'"
   exit 1
+fi
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo "Dry run"
+  echo "log file: ${LOG_DIR}/${BIN_NAME}${LOG_SUFFIX}_trace_tracename"
+  exit 0
 fi
 
 # Use find to locate all trace files and pipe them to xargs for parallel execution
