@@ -2,8 +2,6 @@
 
 #include "cache.h"
 #include <cstdint>
-#include <fmt/core.h>
-
 uint32_t ghb_stride::prefetcher_cache_operate(
     champsim::address addr, champsim::address ip, uint8_t cache_hit,
     bool useful_prefetch, access_type type, uint32_t metadata_in) {
@@ -72,7 +70,7 @@ uint32_t ghb_stride::prefetcher_cache_operate(
     cl_addr_prev = ghb.buf[ghb_idx].cl_addr;
     tmp_stride = champsim::offset(cl_addr_prev, cl_addr_cur);
 
-    cl_addr_prev = cl_addr_cur;
+    cl_addr_cur = cl_addr_prev;
     if (confidence == 0) {
       stride = tmp_stride;
     } else if (stride != tmp_stride) {
