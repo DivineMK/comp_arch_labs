@@ -1,15 +1,9 @@
 #ifndef GHB_DC_H
 #define GHB_DC_H
 
-#include <array>
-#include <cstdint>
-#include <optional>
-#include <vector>
-
 #include "address.h"
 #include "champsim.h"
 #include "modules.h"
-#include "msl/lru_table.h"
 
 using idx_t = size_t;
 

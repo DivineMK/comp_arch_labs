@@ -3,15 +3,10 @@
 #include "dpc_api.h"
 
 #include "cache.h"
-#include <array>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-#include <sys/types.h>
 
 static uint16_t cycle_cnt = 0;
 static uint8_t start = 1;
-champsim::address miss_addr_old;
+static champsim::block_number cl_addr_old;
 
 template <typename T> T unsigned_sub(T a, T b, T limit) {
   return (a >= b) ? (a - b) : (limit - (b - a));
@@ -22,15 +17,17 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
                                  uint8_t cache_hit, bool useful_prefetch,
                                  access_type type, uint32_t metadata_in) {
 
+  champsim::block_number cl_addr{addr};
   if (start == 1) {
-    miss_addr_old = addr;
+    cl_addr_old = cl_addr;
     start = 0;
     return 0;
   }
-
+  //
+  // champsim::offset(a, b) = b - a
   champsim::block_number::difference_type delta =
-      champsim::offset(addr, miss_addr_old);
-  champsim::block_number cl_addr = champsim::block_number{addr};
+      champsim::offset(cl_addr_old, cl_addr);
+  cl_addr_old = cl_addr;
 
   size_t it_idx, ghb_idx = 0;
   // index by both delta and ip
@@ -38,7 +35,7 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
   bool key_in_it = false;
   if (index_table.size > 0) {
     for (size_t i = 1; i <= index_table.size; i++) {
-      it_idx = (index_table.head - i) % index_table.size;
+      it_idx = unsigned_sub(index_table.head, i, index_table.size);
       if (index_table.buf[it_idx].delta == delta) {
         key_in_it = true;
         break;
@@ -57,62 +54,45 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
   size_t counter = PREFETCH_DEPTH * PREFETCH_WIDTH;
   prefetches_head = 0;
 
-  // check if ghb_idx point to itself or point to different delta
+  // check if ghb_idx point to itself or point to entry with different delta
   if (ghb.head == index_table.buf[it_idx].ghb_idx ||
       delta != ghb.buf[index_table.buf[it_idx].ghb_idx].delta)
     ghb_idx = GHB_SIZE;
-  else
+  else {
     ghb_idx = index_table.buf[it_idx].ghb_idx;
+  }
 
   index_table.buf[it_idx].ghb_idx = ghb.head;
 
-  size_t ghb_idx_prev = ghb.head, ghb_idx_cur = ghb_idx;
+  size_t ghb_idx_new = ghb.head, ghb_idx_old = ghb_idx;
 
   ghb.push(delta, cl_addr, ghb_idx);
 
   size_t pref_cnt_width{0};
   size_t ghb_tmp = 0;
-  size_t count = 0;
 
-  while (counter > 0 && ghb_idx_cur != GHB_SIZE) {
+  while (counter > 0 && ghb_idx_old != GHB_SIZE) {
 
-    if (count >= PREFETCH_DEPTH * PREFETCH_WIDTH) {
-      fprintf(stderr, "ghb_tmp: %ld, ghb_idx_cur: %ld, ghb_idx_prev: %ld\r\n",
-              ghb_tmp, ghb_idx_cur, ghb_idx_prev);
-      fflush(stderr);
-      std::abort();
-    }
-    ghb_tmp = unsigned_sub(ghb_idx_prev, ghb_idx_cur, GHB_SIZE);
-
-    if (ghb_tmp >= GHB_SIZE) {
-      fprintf(stderr, "ghb_tmp: %ld, ghb_idx_cur: %ld, ghb_idx_prev: %ld\r\n",
-              ghb_tmp, ghb_idx_cur, ghb_idx_prev);
-      std::abort();
-    }
-
+    ghb_tmp = unsigned_sub(ghb_idx_new, ghb_idx_old, GHB_SIZE);
     pref_cnt_width = (ghb_tmp <= counter) ? ghb_tmp : counter;
 
-    if (pref_cnt_width >= GHB_SIZE) {
-      fprintf(stderr, "pref_cnt_width: %ld, counter: %ld\r\n", pref_cnt_width,
-              counter);
-      std::abort();
-    }
-
     for (size_t i = 1; i < pref_cnt_width; i++) {
+      // if (prefetches_head > 0 &&
+      //     champsim::page_number{prefetches[prefetches_head - 1]} ==
+      //         champsim::page_number{ghb.buf[ghb_idx_old + i].cl_addr})
       prefetches[prefetches_head++] =
-          champsim::address{ghb.buf[ghb_idx_cur + i].cl_addr};
+          champsim::address{ghb.buf[(ghb_idx_old + i) % GHB_SIZE].cl_addr};
       // fprintf(stderr, "test: %ld\r\n",
       //         champsim::address{champsim::block_number{0} +
       //                           champsim::block_number::difference_type{1}});
       // std::abort();
     }
     prefetches[prefetches_head++] =
-        champsim::address{ghb.buf[ghb_idx_cur].cl_addr};
+        champsim::address{ghb.buf[ghb_idx_old].cl_addr};
     counter -= pref_cnt_width;
     // check next starting point
-    ghb_idx_prev = ghb_idx_cur;
-    ghb_idx_cur = ghb.buf[ghb_idx_cur].prev;
-    count++;
+    ghb_idx_new = ghb_idx_old;
+    ghb_idx_old = ghb.buf[ghb_idx_old].prev;
   }
 
   return metadata_in;
