@@ -2,8 +2,6 @@
 #include "dpc_api.h"
 
 #include "cache.h"
-#include <cstdint>
-#include <sys/types.h>
 
 static uint16_t cycle_cnt = 0;
 uint32_t ghb_stride_sa::prefetcher_cache_operate(
@@ -69,7 +67,7 @@ uint32_t ghb_stride_sa::prefetcher_cache_operate(
     cl_addr_prev = ghb.buf[ghb_idx].cl_addr;
     tmp_stride = champsim::offset(cl_addr_prev, cl_addr_cur);
 
-    cl_addr_prev = cl_addr_cur;
+    cl_addr_cur = cl_addr_prev;
     if (confidence == 0) {
       stride = tmp_stride;
     } else if (stride != tmp_stride) {
