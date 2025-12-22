@@ -12,9 +12,10 @@
 
 using idx_t = size_t;
 
+constexpr static std::size_t GHB_SIZE = 256;
 struct index_table_entry {
   champsim::address ip{0}; // the IP we're tracking
-  idx_t ghb_idx{0};
+  idx_t ghb_idx{GHB_SIZE};
   auto index() const {
     using namespace champsim::data::data_literals;
     return ip.slice_upper<2_b>();
@@ -27,7 +28,7 @@ struct index_table_entry {
 
 struct ghb_entry {
   champsim::block_number cl_addr{0}; // the cache line
-  idx_t prev{0};
+  idx_t prev{GHB_SIZE};
 };
 
 // Index table circular buffer
@@ -72,7 +73,6 @@ struct ghb_stride : public champsim::modules::prefetcher {
 
   constexpr static std::size_t IT_SIZE = 256;
   constexpr static std::size_t IT_WAYS = 1;
-  constexpr static std::size_t GHB_SIZE = 256;
   inline static int PREFETCH_DEGREE = 6;
   constexpr static int PREFETCH_DISTANCE = 4;
   constexpr static int CONFIDENCE = 2;
