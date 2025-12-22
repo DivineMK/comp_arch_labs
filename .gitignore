@@ -7,3 +7,5 @@ traces/
 tracer/
 profile/
 bin/
+logs/
+*.log
