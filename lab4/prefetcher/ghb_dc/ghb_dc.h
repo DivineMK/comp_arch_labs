@@ -7,16 +7,18 @@
 
 using idx_t = size_t;
 
+constexpr static std::size_t GHB_SIZE = 256;
+
 struct index_table_entry {
   champsim::address ip{0};                          // IP
   champsim::block_number::difference_type delta{0}; // delta correlation
-  idx_t ghb_idx{0};                                 // GHB pointer
+  idx_t ghb_idx{GHB_SIZE};                          // GHB pointer
 };
 
 struct ghb_entry {
   champsim::block_number::difference_type delta{0}; // delta correlation
-  champsim::block_number cl_addr{0};                // delta correlation
-  idx_t prev{0};
+  champsim::address cl_addr{0};                     // delta correlation
+  idx_t prev{GHB_SIZE};
 };
 
 // Index table circular buffer
@@ -39,7 +41,7 @@ template <size_t N> struct it_cb {
 // GHB circular buffer
 template <size_t N> struct ghb_cb {
   void push(const champsim::block_number::difference_type &delta,
-            const champsim::block_number cl_addr, idx_t prev) {
+            const champsim::address cl_addr, idx_t prev) {
     buf[head].delta = delta;
     buf[head].cl_addr = cl_addr;
     buf[head].prev = prev;
@@ -57,15 +59,9 @@ template <size_t N> struct ghb_cb {
 struct ghb_dc : public champsim::modules::prefetcher {
 
   constexpr static std::size_t IT_SIZE = 256;
-  constexpr static std::size_t IT_WAYS = 1;
-  constexpr static std::size_t GHB_SIZE = 256;
-  constexpr static int PREFETCH_WIDTH = 4;
-  constexpr static int PREFETCH_DEPTH = 4;
+  constexpr static int PREFETCH_WIDTH = 1;
+  constexpr static int PREFETCH_DEPTH = 1;
   constexpr static int CONFIDENCE = 2;
-
-  std::array<champsim::address, PREFETCH_DEPTH * PREFETCH_WIDTH>
-      active_lookahead;
-  size_t prefetch_cnt{0};
 
   ghb_cb<GHB_SIZE> ghb;
   it_cb<IT_SIZE> index_table; // FIFO

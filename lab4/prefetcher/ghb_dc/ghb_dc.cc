@@ -23,14 +23,16 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
     start = 0;
     return 0;
   }
-  //
   // champsim::offset(a, b) = b - a
   champsim::block_number::difference_type delta =
       champsim::offset(cl_addr_old, cl_addr);
   cl_addr_old = cl_addr;
 
+  if (delta == 0)
+    return 0;
+
   size_t it_idx, ghb_idx = 0;
-  // index by both delta and ip
+  // index by both delta
   // FIFO replacement
   bool key_in_it = false;
   if (index_table.size > 0) {
@@ -45,14 +47,9 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
 
   if (!key_in_it) {
     index_table.push(delta, ghb.head);
-    ghb.push(delta, cl_addr, GHB_SIZE);
+    ghb.push(delta, addr, GHB_SIZE); // GHB_SIZE == null
     return metadata_in;
   }
-
-  // have a counter to count n0 prefetches (to match ip_stride cases)
-  // (optional) have a set to store next prefetches
-  size_t counter = PREFETCH_DEPTH * PREFETCH_WIDTH;
-  prefetches_head = 0;
 
   // check if ghb_idx point to itself or point to entry with different delta
   if (ghb.head == index_table.buf[it_idx].ghb_idx ||
@@ -66,29 +63,36 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
 
   size_t ghb_idx_new = ghb.head, ghb_idx_old = ghb_idx;
 
-  ghb.push(delta, cl_addr, ghb_idx);
+  ghb.push(delta, addr, ghb_idx);
 
   size_t pref_cnt_width{0};
   size_t ghb_tmp = 0;
 
+  // have a counter to count remaining n0 prefetches
+  size_t counter = PREFETCH_DEPTH * PREFETCH_WIDTH;
+  prefetches_head = 0;
   while (counter > 0 && ghb_idx_old != GHB_SIZE) {
 
     ghb_tmp = unsigned_sub(ghb_idx_new, ghb_idx_old, GHB_SIZE);
     pref_cnt_width = (ghb_tmp <= counter) ? ghb_tmp : counter;
+    pref_cnt_width = 1;
 
     for (size_t i = 1; i < pref_cnt_width; i++) {
       // if (prefetches_head > 0 &&
       //     champsim::page_number{prefetches[prefetches_head - 1]} ==
       //         champsim::page_number{ghb.buf[ghb_idx_old + i].cl_addr})
-      prefetches[prefetches_head++] =
-          champsim::address{ghb.buf[(ghb_idx_old + i) % GHB_SIZE].cl_addr};
+      cl_addr += ghb.buf[(ghb_idx_old + i) % GHB_SIZE].delta;
+      prefetches[prefetches_head++] = champsim::address{cl_addr};
       // fprintf(stderr, "test: %ld\r\n",
       //         champsim::address{champsim::block_number{0} +
       //                           champsim::block_number::difference_type{1}});
       // std::abort();
     }
-    prefetches[prefetches_head++] =
-        champsim::address{ghb.buf[ghb_idx_old].cl_addr};
+    // TODO: what happens when pref_cnt_width == counter
+    if (pref_cnt_width <= counter) {
+      cl_addr += ghb.buf[ghb_idx_old].delta;
+      prefetches[prefetches_head++] = champsim::address{cl_addr};
+    }
     counter -= pref_cnt_width;
     // check next starting point
     ghb_idx_new = ghb_idx_old;
@@ -115,7 +119,7 @@ void ghb_dc::prefetcher_cycle_operate() {
       const bool mshr_under_light_load = true;
       const bool success =
           prefetch_line(prefetches[i], mshr_under_light_load, 0);
-      // consider using success
+      // TODO: consider using success
       old_pf_address = prefetches[i];
     } else
       continue;
