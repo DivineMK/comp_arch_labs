@@ -70,9 +70,31 @@ for filename in glob.glob(f"profile_{args.prefix}/*.txt"):
             }
         )
 
-# Sort data
-# Sort by operation, data_type, and number of tasklets
-temp_data.sort(key=lambda x: (x["operation"], x["data_type"], x["nr_tasklets"]))
+# Define custom orderings
+data_type_order = [
+    "CHAR",
+    "SHORT",
+    "INT32",
+    "UINT32",
+    "INT64",
+    "UINT64",
+    "FLOAT",
+    "DOUBLE",
+]
+operation_order = ["ADD", "SUB", "MUL", "DIVIDE"]
+
+# Create order mappings
+data_type_map = {item: idx for idx, item in enumerate(data_type_order)}
+operation_map = {item: idx for idx, item in enumerate(operation_order)}
+
+# Sort data using custom orderings
+temp_data.sort(
+    key=lambda x: (
+        operation_map.get(x["operation"], float("inf")),
+        data_type_map.get(x["data_type"], float("inf")),
+        x["nr_tasklets"],
+    )
+)
 
 # Write to CSV
 with open(output_file, "w", newline="") as csvfile:

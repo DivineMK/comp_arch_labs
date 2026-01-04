@@ -9,7 +9,7 @@ parser.add_argument(
     "--prefix",
     "-p",
     default="sw",
-    choices=["sw", "hw"],
+    # choices=["sw", "hw"],
     type=str,
     help="Prefix (sw/hw)",
 )

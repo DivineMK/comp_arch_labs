@@ -44,15 +44,10 @@ df_pivoted.reindex(index=order_rows, columns=order_cols).to_csv(
     f"{args.prefix}_task3_pivoted.csv",
     float_format="%.6f",
 )
-# Check if there's an 'operation' column, otherwise create a dummy one
-if "operation" not in df.columns:
-    df["operation"] = "default"
 
-# Get all unique data types
-data_types = sorted(df["data_type"].unique())
-
+data_types = order_rows
 # Define consistent color palette for operations
-operations = sorted(df["operation"].unique())
+operations = order_cols
 nr_tasklets = sorted(df["nr_tasklets"].unique())
 colors = plt.cm.tab10.colors
 color_map = {op: colors[i % len(colors)] for i, op in enumerate(operations)}
@@ -67,7 +62,8 @@ for dtype in data_types:
     dtype_data = df[df["data_type"] == dtype]
 
     # Plot each operation
-    for operation, group in dtype_data.groupby("operation"):
+    for operation in operations:
+        group = dtype_data[dtype_data["operation"] == operation]
         # Plot Instructions on ax1 (Solid)
         ax1.plot(
             group["nr_tasklets"],
@@ -127,7 +123,8 @@ for dtype in data_types:
         ax2 = ax1.twinx()
 
         # Plot each operation
-        for operation, group in dtype_data.groupby("operation"):
+        for operation in operations:
+            group = dtype_data[dtype_data["operation"] == operation]
             # Plot Time on ax1 (Solid)
             ax1.plot(
                 group["nr_tasklets"],

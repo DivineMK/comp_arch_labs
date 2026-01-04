@@ -2,7 +2,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LogLocator, FuncFormatter, ScalarFormatter
 import argparse
-import math
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot DPU bandwidth from CSV")
@@ -64,7 +63,8 @@ for input_size in input_sizes:
     ax2 = ax1.twinx()
 
     # Plot each sync method
-    for i, (sync_method, group) in enumerate(input_size_data.groupby("sync")):
+    for i, sync_method in enumerate(sync_methods):
+        group = input_size_data[input_size_data["sync"] == sync_method]
         ax1.plot(
             group["nr_tasklets"],
             group["instructions"],
@@ -112,7 +112,8 @@ for input_size in input_sizes:
         ax2 = ax1.twinx()
 
         # Plot each sync method
-        for i, (sync_method, group) in enumerate(input_size_data.groupby("sync")):
+        for i, sync_method in enumerate(sync_methods):
+            group = input_size_data[input_size_data["sync"] == sync_method]
             ax1.plot(
                 group["nr_tasklets"],
                 group["dpu_time"],

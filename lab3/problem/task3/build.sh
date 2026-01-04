@@ -30,7 +30,7 @@ rm "$(dirname "$0")"/bin/ -rf
 mkdir -p "$(dirname "$0")/profile_${PREFIX}"
 
 i=1
-for op in SUB DIVIDE MUL; do
+for op in ADD SUB DIVIDE MUL; do
   for type in INT32 UINT32 INT64 FLOAT DOUBLE UINT64 SHORT CHAR; do
     case $type in
     INT32 | UINT32 | FLOAT) i=2 ;;
