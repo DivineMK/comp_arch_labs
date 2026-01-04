@@ -85,9 +85,9 @@ int main_kernel1() {
            pixel_block);
     return 1;
   }
-  if (pixel_block % 24 != 0) {
-    printf(
-        "pixel_block need to be byte-aligned and div 3 = 0 -> div 24 = 0\r\n");
+  if (pixel_block % 24 != 0 && pixel_block > input_size) {
+    printf("pixel_block need to be byte-aligned and div sizeof(pixel_t) = 0 -> "
+           "div 24 = 0\r\n");
     return 1;
   }
 
@@ -98,6 +98,7 @@ int main_kernel1() {
   pixel_t *cacheY = (pixel_t *)mem_alloc(pixel_block);
   // pixel_t *cacheY = (pixel_t *)mem_alloc(pixel_block);
 
+  uint32_t nr_elems;
   // distribute data to every tasklet -> separated by NR_ELEM * NR_TASKLETS
   for (unsigned int byte_index = base_tasklet; byte_index < input_size;
        byte_index += pixel_block * NR_TASKLETS) {
@@ -106,6 +107,12 @@ int main_kernel1() {
     uint32_t size_pixels = (byte_index + pixel_block >= input_size)
                                ? (input_size - byte_index)
                                : pixel_block;
+
+    if (size_pixels % 8 != 0) {
+      nr_elems = size_pixels / sizeof(pixel_t);
+      size_pixels = roundup(size_pixels, 8);
+    } else
+      nr_elems = NR_ELEM;
 
     // Load cache with current MRAM block
     mram_read((__mram_ptr void const *)(mram_base_addr_Y + byte_index), cacheY,
@@ -116,10 +123,7 @@ int main_kernel1() {
 #if defined(CYCLES) || defined(INSTRUCTIONS)
     counter_start(&count); // START TIMER
 #endif
-    if (size_pixels == pixel_block)
-      grayscale(cacheY, NR_ELEM);
-    else
-      grayscale(cacheY, size_pixels / sizeof(pixel_t));
+    grayscale(cacheY, nr_elems);
 
 #if defined(CYCLES) || defined(INSTRUCTIONS)
     result->count += counter_stop(&count); // STOP TIMER

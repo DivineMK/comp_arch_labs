@@ -5,7 +5,8 @@
 *.xz
 traces/
 tracer/
-profile/
+profile*/
 bin/
 logs/
 *.log
+/all.sh

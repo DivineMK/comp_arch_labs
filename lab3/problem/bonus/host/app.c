@@ -94,6 +94,11 @@ int main(int argc, char **argv) {
   const unsigned int nr_pixels_dpu_8bytes =
       input_size_dpu_8bytes / sizeof(pixel_t); // for comparing with host
 
+  printf("nr_pixels: %u, nr_pixels_dpu: %u, input_size_dpu_8bytes: %u, "
+         "nr_pixels_dpu_8bytes: %u\r\n",
+         nr_pixels, nr_pixels_dpu, input_size_dpu_8bytes, nr_pixels_dpu_8bytes);
+  printf("last dpu input size: %u\r\n",
+         nr_pixels - nr_pixels_dpu * (nr_of_dpus - 1));
   // Input/output allocation in host main memory
 
   Y = malloc(nr_of_dpus * input_size_dpu_8bytes);
@@ -303,24 +308,25 @@ int main(int argc, char **argv) {
   for (i = 0; i < nr_of_dpus; i++) {
     for (unsigned int j = 0; j < nr_pixels_dpu; j++) {
       if (Y_host[i * nr_pixels_dpu_8bytes + j].r !=
-              Y[i * nr_pixels_dpu + j].r ||
-          Y_host[i * nr_pixels_dpu_8bytes + j].r !=
-              Y[i * nr_pixels_dpu + j].g ||
-          Y_host[i * nr_pixels_dpu_8bytes + j].r !=
-              Y[i * nr_pixels_dpu + j].b) {
+              Y[i * nr_pixels_dpu_8bytes + j].r ||
+          Y_host[i * nr_pixels_dpu_8bytes + j].g !=
+              Y[i * nr_pixels_dpu_8bytes + j].g ||
+          Y_host[i * nr_pixels_dpu_8bytes + j].b !=
+              Y[i * nr_pixels_dpu_8bytes + j].b) {
         status = false;
-        printf("%d: %u -- %u\n", i * nr_pixels_dpu_8bytes + j,
+        printf("%u: %u -- %u\n", i * nr_pixels_dpu_8bytes + j,
                Y_host[i * nr_pixels_dpu_8bytes + j].r,
                Y[i * nr_pixels_dpu + j].r);
-        printf("%d: %u -- %u\n", i * nr_pixels_dpu_8bytes + j,
+        printf("%u: %u -- %u\n", i * nr_pixels_dpu_8bytes + j,
                Y_host[i * nr_pixels_dpu_8bytes + j].g,
                Y[i * nr_pixels_dpu + j].g);
-        printf("%d: %u -- %u\n", i * nr_pixels_dpu_8bytes + j,
+        printf("%u: %u -- %u\n", i * nr_pixels_dpu_8bytes + j,
                Y_host[i * nr_pixels_dpu_8bytes + j].b,
                Y[i * nr_pixels_dpu + j].b);
       }
     }
   }
+
   if (status) {
     printf("[" ANSI_COLOR_GREEN "OK" ANSI_COLOR_RESET "] Outputs are equal\n");
   } else {
