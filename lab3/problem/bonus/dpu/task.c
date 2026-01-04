@@ -33,12 +33,15 @@ static void grayscale(pixel_t *A, unsigned int l_size) {
   for (unsigned int i = 0; i < l_size; i++) {
 #ifdef LIG
     grayscale =
-        1 / 2 *
-        (min(min(A[i].r, A[i].g), A[i].b) + max(max(A[i].r, A[i].g), A[i].b));
+        (min(min(A[i].r, A[i].g), A[i].b) + max(max(A[i].r, A[i].g), A[i].b)) >>
+        1;
 #elif AVG
-    grayscale = (A[i].r + A[i].g + A[i].b) / 3;
+    grayscale =
+        (uint32_t)((A[i].r + A[i].g + A[i].b) * 342) >> 10; // 1/3=342>>10
 #elif LUM
-    grayscale = (0.3 * A[i].r) + (0.59 * A[i].g) + (0.11 * A[i].b);
+    grayscale = ((uint32_t)(307 * A[i].r) + (uint32_t)(604 * A[i].g) +
+                 (uint32_t)(113 * A[i].b)) >>
+                10;
 #else
     printf("Invalid grayscale method\r\n");
     return;
@@ -82,6 +85,11 @@ int main_kernel1() {
            pixel_block);
     return 1;
   }
+  if (pixel_block % 24 != 0) {
+    printf(
+        "pixel_block need to be byte-aligned and div 3 = 0 -> div 24 = 0\r\n");
+    return 1;
+  }
 
   uint32_t base_tasklet = tasklet_id * pixel_block;
   uint32_t mram_base_addr_Y = (uint32_t)DPU_MRAM_HEAP_POINTER;
@@ -108,7 +116,10 @@ int main_kernel1() {
 #if defined(CYCLES) || defined(INSTRUCTIONS)
     counter_start(&count); // START TIMER
 #endif
-    grayscale(cacheY, size_pixels / sizeof(pixel_t));
+    if (size_pixels == pixel_block)
+      grayscale(cacheY, NR_ELEM);
+    else
+      grayscale(cacheY, size_pixels / sizeof(pixel_t));
 
 #if defined(CYCLES) || defined(INSTRUCTIONS)
     result->count += counter_stop(&count); // STOP TIMER
