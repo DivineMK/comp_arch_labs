@@ -12,6 +12,7 @@ import re
 import glob
 import json
 import math
+import argparse
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
@@ -38,12 +39,12 @@ def parse_log_file(file_path):
     return None
 
 
-def main():
+def process_logs(logs_dir="logs"):
     """
-    Main function to find logs, process them, and generate plots.
+    Processes log files to extract IPCs, calculate speedups and geometric means.
+    Returns (ipcs, speedups) dictionaries indexed by [config][prefetcher][trace].
     """
-    logs_dir = "logs"
-    # Using defaultdict to easily create nested dictionaries for config -> trace -> prefetcher
+    # New indexing: ipcs[config][prefetcher][trace]
     ipcs = defaultdict(lambda: defaultdict(dict))
 
     # Glob pattern to find all relevant log files within subdirectories
@@ -52,176 +53,242 @@ def main():
 
     if not log_files:
         print(f"No log files found matching the pattern: {log_pattern}")
-        print(
-            "Please ensure that the log files are in the format logs/1C.{config}.{prefetcher_name}/1C.{config}.{prefetcher_name}_trace_{trace_name}.log"
-        )
-        return
+        return None, None
 
     print(f"Found {len(log_files)} log files to process...")
 
     for log_file in log_files:
         try:
             # --- Extract config, prefetcher, and trace name from the path ---
-            # Get config and prefetcher from directory name
             dir_name = os.path.basename(os.path.dirname(log_file))
             _, config, prefetcher_name = dir_name.split(".")
 
             # Get trace name from filename
             filename = os.path.basename(log_file)
             base_name = filename.removesuffix(".log")
-            _, trace_name = base_name.split("_trace_")
+            trace_name = base_name.split("_trace_")[-1]
 
             ipc = parse_log_file(log_file)
             if ipc is not None:
-                ipcs[config][trace_name][prefetcher_name] = ipc
+                ipcs[config][prefetcher_name][trace_name] = ipc
 
         except (ValueError, IndexError):
             print(f"Warning: Could not parse path components from: {log_file}")
 
     if not ipcs:
-        print("No IPC data was successfully extracted. Exiting.")
-        return
+        return None, None
 
-    # --- Calculate Speedups ---
+    # --- Calculate Speedups and Geometric Means ---
     speedups = defaultdict(lambda: defaultdict(dict))
-    for config, traces in ipcs.items():
-        for trace_name, prefetcher_ipcs in traces.items():
-            if "nopref" in prefetcher_ipcs:
-                baseline_ipc = prefetcher_ipcs["nopref"]
-                if baseline_ipc > 0:
-                    for prefetcher_name, ipc in prefetcher_ipcs.items():
-                        speedups[config][trace_name][prefetcher_name] = (
-                            ipc / baseline_ipc
-                        )
-                else:
-                    print(
-                        f"Warning: Baseline 'nopref' IPC is 0 for trace {trace_name} in config {config}. Cannot calculate speedup."
-                    )
+    for config, prefetchers in ipcs.items():
+        if "nopref" not in prefetchers:
+            print(
+                f"Warning: 'nopref' baseline not found for config {config}. Skipping speedups."
+            )
+            continue
+
+        baseline_ipcs = prefetchers["nopref"]
+
+        for pref_name, pref_ipcs in prefetchers.items():
+            valid_speedups = []
+            for trace_name, ipc in pref_ipcs.items():
+                if trace_name in baseline_ipcs and baseline_ipcs[trace_name] > 0:
+                    speedup = ipc / baseline_ipcs[trace_name]
+                    speedups[config][pref_name][trace_name] = speedup
+                    if pref_name != "nopref":
+                        valid_speedups.append(speedup)
+
+            # Calculate Geometric Mean
+            if pref_name == "nopref":
+                speedups[config][pref_name]["GEOMEAN"] = 1.0
+            elif valid_speedups:
+                log_sum = sum(math.log(v) for v in valid_speedups)
+                gmean = math.exp(log_sum / len(valid_speedups))
+                speedups[config][pref_name]["GEOMEAN"] = gmean
             else:
-                print(
-                    f"Warning: 'nopref' baseline not found for trace {trace_name} in config {config}. Cannot calculate speedup."
-                )
+                speedups[config][pref_name]["GEOMEAN"] = 0
 
-    # --- Calculate Geometric Mean of Speedups ---
-    for config, traces_speedups in speedups.items():
-        # Get all prefetchers for this config
-        all_prefetchers = set()
-        for trace_name, trace_data in traces_speedups.items():
-            if trace_name == "GEOMEAN":
-                continue
-            all_prefetchers.update(trace_data.keys())
+    return ipcs, speedups
 
-        # Calculate gmean for each prefetcher
-        for prefetcher in all_prefetchers:
-            if prefetcher == "nopref":
-                gmean = 1.0
-            else:
-                speedup_values = [
-                    trace_data[prefetcher]
-                    for trace_name, trace_data in traces_speedups.items()
-                    if trace_name != "GEOMEAN"
-                    and prefetcher in trace_data
-                    and trace_data[prefetcher] > 0
-                ]
-                if speedup_values:
-                    log_sum = sum(math.log(v) for v in speedup_values)
-                    gmean = math.exp(log_sum / len(speedup_values))
-                else:
-                    gmean = 0  # Default if no valid speedups found
 
-            # Store the geometric mean
-            if "GEOMEAN" not in speedups[config]:
-                speedups[config]["GEOMEAN"] = {}
-            speedups[config]["GEOMEAN"][prefetcher] = gmean
-
-    # --- Write the collected speedups dictionary to a file ---
-    output_json_filename = "speedups.json"
-    print(f"\n--- Writing speedups to {output_json_filename} ---")
-    with open(output_json_filename, "w") as f:
-        json.dump(speedups, f, indent=4)
-    print("------------------------------------------------------\n")
-
-    # --- Generate Bar Plots ---
+def plot_results(ipcs, speedups, suffix, plot_nopref):
+    """
+    Generates bar plots for speedups and baseline IPCs.
+    """
     if not speedups:
         print("No speedup data to plot.")
         return
 
     print("Generating plots...")
 
-    # One plot per configuration
-    for config, trace_speedups in speedups.items():
-        if not trace_speedups:
-            print(f"No data to plot for config: {config}")
-            continue
+    # 1. Speedup Plots: One plot per configuration
+    for config, pref_speedups in speedups.items():
+        # Collect all unique traces across all prefetchers in this config
+        all_traces = set()
+        for pref_data in pref_speedups.values():
+            all_traces.update(pref_data.keys())
 
-        # Get all unique traces and prefetchers for this config
-        all_traces = sorted(trace_speedups.keys())
-        # Ensure 'GEOMEAN' is plotted last
+        traces_to_plot = sorted([t for t in all_traces if t != "GEOMEAN"])
         if "GEOMEAN" in all_traces:
-            all_traces.remove("GEOMEAN")
-            all_traces.append("GEOMEAN")
+            traces_to_plot.append("GEOMEAN")
 
-        all_prefetchers = set()
-        for trace in all_traces:
-            all_prefetchers.update(trace_speedups[trace].keys())
-
-        # We will plot each prefetcher as a bar, grouped by trace.
-        # Exclude 'nopref' from the bars as it's the baseline.
-        plot_prefetchers = sorted([p for p in all_prefetchers if p != "nopref"])
+        # Prefetchers to show (exclude nopref from bars usually, or include it if desired)
+        # Here we exclude 'nopref' from the bars to focus on improvements
+        plot_prefetchers = sorted([p for p in pref_speedups.keys() if p != "nopref"])
 
         if not plot_prefetchers:
-            print(f"Only 'nopref' data found for config {config}, skipping plot.")
+            print(
+                f"Only 'nopref' data found for config {config}, skipping speedup plot."
+            )
             continue
 
-        num_prefetchers = len(plot_prefetchers)
-        num_traces = len(all_traces)
+        num_prefs = len(plot_prefetchers)
+        num_traces = len(traces_to_plot)
 
-        # Setup for grouped bar chart
-        x = range(num_traces)  # positions for trace groups
+        x = range(num_traces)
         total_width = 0.8
-        bar_width = total_width / num_prefetchers
+        bar_width = total_width / num_prefs
 
-        fig, ax = plt.subplots(figsize=(8 + num_traces, 6))  # Dynamic figure size
+        fig, ax = plt.subplots(figsize=(8 + num_traces // 2, 6))
 
-        # Plot bars for each prefetcher
-        for i, prefetcher in enumerate(plot_prefetchers):
-            speedup_values = [
-                trace_speedups[trace].get(prefetcher, 0) for trace in all_traces
-            ]
-            # Calculate position for each bar
-            position = [
-                pos - (total_width / 2) + (i * bar_width) + (bar_width / 2) for pos in x
-            ]
-            rects = ax.bar(position, speedup_values, width=bar_width, label=prefetcher)
+        for i, pref in enumerate(plot_prefetchers):
+            vals = [pref_speedups[pref].get(t, 0) for t in traces_to_plot]
+            pos = [p - (total_width / 2) + (i * bar_width) + (bar_width / 2) for p in x]
+            rects = ax.bar(pos, vals, width=bar_width, label=pref)
 
-            # Add labels on top of the bars
+            # Labels on top
             for rect in rects:
                 height = rect.get_height()
                 ax.annotate(
                     f"{height:.2f}",
                     xy=(rect.get_x() + rect.get_width() / 2, height),
-                    xytext=(0, 3),  # 3 points vertical offset
+                    xytext=(0, 3),
                     textcoords="offset points",
                     ha="center",
                     va="bottom",
+                    fontsize=8,
                 )
 
-        # Formatting
         ax.set_title(f"Prefetcher Speedups for {config} Configuration")
-        ax.set_xlabel("Trace")
         ax.set_ylabel("Speedup (relative to 'nopref')")
         ax.set_xticks(x)
-        ax.set_xticklabels(all_traces, rotation=45, ha="right")
-        ax.axhline(y=1.0, color="r", linestyle="--", label="Baseline (nopref)")
-        ax.legend(title="Prefetchers")
+        ax.set_xticklabels(traces_to_plot, rotation=45, ha="right")
+        ax.axhline(y=1.0, color="r", linestyle="--", alpha=0.5, label="Baseline")
+        ax.legend(title="Prefetchers", bbox_to_anchor=(1.05, 1), loc="upper left")
         ax.grid(axis="y", linestyle="--", alpha=0.7)
 
         fig.tight_layout()
-
-        output_filename = f"{config}_speedups.png"
-        plt.savefig(output_filename)
-        print(f"Saved plot to {output_filename}")
+        output_filename = f"{config}_speedups_{suffix}.png"
+        plt.savefig(output_filename, bbox_inches="tight")
+        print(f"Saved speedup plot to {output_filename}")
         plt.close(fig)
+
+    # 2. Baseline IPC Plot: Specifically for 'fullBW' nopref
+    if not plot_nopref:
+        print("Skipping plotting nopref image")
+        return
+
+    if "fullBW" in ipcs and "nopref" in ipcs["fullBW"]:
+        print("Generating baseline IPC plot for fullBW configuration...")
+        nopref_data = ipcs["fullBW"]["nopref"]
+        traces = sorted(nopref_data.keys())
+        ipc_values = [nopref_data[t] for t in traces]
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = range(len(traces))
+        rects = ax.bar(x, ipc_values, color="gray", alpha=0.8)
+
+        for rect in rects:
+            height = rect.get_height()
+            ax.annotate(
+                f"{height:.3f}",
+                xy=(rect.get_x() + rect.get_width() / 2, height),
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+            )
+
+        ax.set_title("Baseline IPC (nopref) for fullBW Configuration")
+        ax.set_ylabel("IPC")
+        ax.set_xticks(x)
+        ax.set_xticklabels(traces, rotation=45, ha="right")
+        ax.grid(axis="y", linestyle="--", alpha=0.5)
+
+        fig.tight_layout()
+        output_filename = f"fullBW_nopref.png"
+        plt.savefig(output_filename)
+        print(f"Saved baseline IPC plot to {output_filename}")
+        plt.close(fig)
+    else:
+        print("Failed to plot nopref")
+
+
+def main():
+    """
+    Main function to find logs, process them, and generate plots.
+    """
+    parser = argparse.ArgumentParser(
+        description="Process ChampSim logs and generate plots."
+    )
+    parser.add_argument(
+        "--suffix",
+        "-s",
+        type=str,
+        default="all",
+        help="Suffix for plot filenames (default: 'all')",
+    )
+    parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Force reprocessing and overwriting of existing JSON files without prompting",
+    )
+    parser.add_argument(
+        "--plot_nopref",
+        "-p",
+        action="store_true",
+        help="Plot nopref",
+    )
+    args = parser.parse_args()
+
+    ipcs = None
+    speedups = None
+    should_write = True
+
+    # Check if we should overwrite existing JSONs before processing
+    if os.path.exists("ipcs.json") and not args.force:
+        response = input("ipcs.json already exists. Reprocess and overwrite? (y/N): ")
+        if response.lower() != "y":
+            should_write = False
+            print("Skipping log processing. Attempting to load existing data...")
+            try:
+                with open("ipcs.json", "r") as f:
+                    ipcs = json.load(f)
+                with open("speedups.json", "r") as f:
+                    speedups = json.load(f)
+            except Exception as e:
+                print(f"Error loading existing JSON files: {e}")
+                return
+
+    # If ipcs is still None, it means we didn't load it (or chose to reprocess)
+    if ipcs is None:
+        ipcs, speedups = process_logs()
+
+    if not ipcs:
+        print("No data successfully extracted or loaded. Exiting.")
+        return
+
+    # --- Write the collected dictionaries to files ---
+    if should_write:
+        print(f"\n--- Writing data to JSON files ---")
+        with open("ipcs.json", "w") as f:
+            json.dump(ipcs, f, indent=4)
+        with open("speedups.json", "w") as f:
+            json.dump(speedups, f, indent=4)
+
+    # --- Generate Bar Plots ---
+    plot_results(ipcs, speedups, suffix=args.suffix, plot_nopref=args.plot_nopref)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,14 @@
+bc-0.trace.gz
+bc-12.trace.gz
+bfs-10.trace.gz
+bfs-14.trace.gz
+cc-13.trace.gz
+cc-14.trace.gz
+cc-5.trace.gz
+sssp-10.trace.gz
+sssp-14.trace.gz
+charlie_0000.champsim.gz
+charlie_0001.champsim.gz
+charlie_0002.champsim.gz
+charlie_0003.champsim.gz
+charlie_0004.champsim.gz

@@ -52,8 +52,8 @@ int main(int argc, char **argv) {
   DPU_ASSERT(dpu_alloc(NR_DPUS, NULL, &dpu_set));
   DPU_ASSERT(
       dpu_get_nr_dpus(dpu_set, &nr_of_dpus)); // Number of DPUs in the DPU set
-  DPU_ASSERT(
-      dpu_get_nr_dpus(dpu_set, &nr_of_ranks)); // Number of ranks in the DPU set
+  DPU_ASSERT(dpu_get_nr_ranks(dpu_set,
+                              &nr_of_ranks)); // Number of ranks in the DPU set
   printf("Allocated %d DPU(s), %d rank(s)\r\n", nr_of_dpus, nr_of_ranks);
 
   uint32_t cycles_retrieve[nr_of_dpus];
@@ -67,8 +67,16 @@ int main(int argc, char **argv) {
   const unsigned int input_size_dpu =
       divceil(input_size, nr_of_dpus); // Input size per DPU (max.)
   const unsigned int input_size_dpu_8bytes =
-      input_size_dpu; // 8-byte aligned with int64_t
+      ((input_size_dpu * sizeof(T)) % 8) != 0
+          ? roundup(input_size_dpu, 8)
+          : input_size_dpu; // Input size per DPU (max.), 8-byte aligned
 
+  printf("input_size: %u, input_size_dpu: %u, input_size_dpu_8bytes: %u, "
+         "input_size_dpu_8bytes: %u\r\n",
+         input_size, input_size_dpu, input_size_dpu_8bytes,
+         input_size_dpu_8bytes);
+  printf("last dpu input size: %u\r\n",
+         input_size - input_size_dpu * (nr_of_dpus - 1));
   // Input/output allocation in host main memory
   X = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
   X_host = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
@@ -166,6 +174,8 @@ int main(int argc, char **argv) {
   // Print timing results
   printf("CPU-DPU ");
   print(&timer, 1, p.n_reps);
+  printf("DPU Kernel ");
+  print(&timer, 2, p.n_reps);
   printf("DPU-CPU ");
   print(&timer, 3, p.n_reps);
   double time_cpu = timer.time[1] / (1e6 * p.n_reps);
@@ -181,7 +191,6 @@ int main(int argc, char **argv) {
     if (X_host[i] != X[i]) {
       status = false;
       printf("%d: %lu -- %lu\n", i, X_host[i], X[i]);
-      break;
     }
   }
   if (status) {

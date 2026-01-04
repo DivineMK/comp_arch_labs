@@ -311,11 +311,11 @@ int main(int argc, char **argv) {
   double time_kernel = timer.time[2] / (1e6 * p.n_reps);
   double time_dpu = timer.time[3] / (1e6 * p.n_reps);
   printf("\r\nCPU-DPU bandwidth (GB/s): %f\r\n",
-         (nr_elements * 8) / (time_cpu * (1 << 30)));
+         nr_elements * sizeof(T) / (time_cpu * (1 << 30)));
   printf("DPU kernels bandwidth (GB/s): %f\r\n",
-         (nr_elements * 8) / (time_kernel * (1 << 30)));
+         nr_elements * sizeof(T) / (time_kernel * (1 << 30)));
   printf("DPU-CPU bandwidth (GB/s): %f\r\n",
-         (nr_elements * 8) / (time_dpu * (1 << 30)));
+         nr_elements * sizeof(T) / (time_dpu * (1 << 30)));
 
   // Check output
   bool status = true;

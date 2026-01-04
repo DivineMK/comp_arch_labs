@@ -64,8 +64,8 @@ int main(int argc, char **argv) {
   DPU_ASSERT(dpu_alloc(NR_DPUS, NULL, &dpu_set));
   DPU_ASSERT(
       dpu_get_nr_dpus(dpu_set, &nr_of_dpus)); // Number of DPUs in the DPU set
-  DPU_ASSERT(
-      dpu_get_nr_dpus(dpu_set, &nr_of_ranks)); // Number of ranks in the DPU set
+  DPU_ASSERT(dpu_get_nr_ranks(dpu_set,
+                              &nr_of_ranks)); // Number of ranks in the DPU set
   printf("Allocated %d DPU(s), %d rank(s)\r\n", nr_of_dpus, nr_of_ranks);
   printf("NR_TASKLETS\t%d\tBLOCK\t%d\n", NR_TASKLETS, BLOCK);
 
