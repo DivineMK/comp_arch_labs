@@ -54,6 +54,9 @@ int main(int argc, char **argv) {
       dpu_get_nr_dpus(dpu_set, &nr_of_dpus)); // Number of DPUs in the DPU set
   printf("Allocated %d DPU(s)\t", nr_of_dpus);
 
+  uint32_t cycles_retrieve[nr_of_dpus];
+  double cycles_res[nr_of_dpus];
+  memset(cycles_res, 0, nr_of_dpus * sizeof(cycles_res[0]));
   // Load binary
   DPU_ASSERT(dpu_load(dpu_set, DPU_BINARY, NULL));
 
@@ -144,7 +147,19 @@ int main(int argc, char **argv) {
 #endif
     if (rep >= p.n_warmup)
       stop(&timer, 3); // Stop timer (DPU-CPU transfers)
+
+    // use CLK speed to detect DPU types
+    if (rep >= p.n_warmup) {
+      DPU_FOREACH(dpu_set, dpu, i) {
+        DPU_ASSERT(dpu_prepare_xfer(dpu, &cycles_retrieve[i]));
+      }
+      DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, "CLOCKS_PER_SEC", 0,
+                               sizeof(uint32_t), DPU_XFER_DEFAULT));
+      DPU_FOREACH(dpu_set, dpu, i) { cycles_res[i] += cycles_retrieve[i]; }
+    }
   }
+  for (i = 0; i < nr_of_dpus; ++i)
+    printf("DPU %d clocks_per_sec  = %g\n", i, cycles_res[i] / (p.n_reps));
 
   // Print timing results
   printf("CPU-DPU ");

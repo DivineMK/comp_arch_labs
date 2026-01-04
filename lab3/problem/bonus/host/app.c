@@ -83,11 +83,14 @@ int main(int argc, char **argv) {
   printf("Allocated %d DPU(s)\t", nr_of_dpus);
   printf("NR_TASKLETS\t%d\tNR_ELEM\t%d\n", NR_TASKLETS, NR_ELEM);
 
+  uint32_t cycles_retrieve[nr_of_dpus];
+  double cycles_res[nr_of_dpus];
+  memset(cycles_res, 0, nr_of_dpus * sizeof(cycles_res[0]));
   // Load binary
   DPU_ASSERT(dpu_load(dpu_set, DPU_BINARY, NULL));
 
   // Input size - number of pixels
-  const unsigned int nr_pixels = p.image_dim * p.image_dim * p.n_image;
+  const unsigned int nr_pixels = p.n_pixels;
   const unsigned int nr_pixels_dpu = divceil(nr_pixels, nr_of_dpus);
   const unsigned int input_size_dpu_8bytes =
       roundup(nr_pixels_dpu * sizeof(pixel_t), 24);
@@ -262,23 +265,22 @@ int main(int argc, char **argv) {
       cc += (double)max_count;
       cc_min += (double)min_count;
     }
-
-    uint32_t cycles_retrieve[nr_of_dpus];
+#endif
+    // use CLK speed to detect DPU types
     if (rep >= p.n_warmup) {
       DPU_FOREACH(dpu_set, dpu, i) {
         DPU_ASSERT(dpu_prepare_xfer(dpu, &cycles_retrieve[i]));
       }
       DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, "CLOCKS_PER_SEC", 0,
                                sizeof(uint32_t), DPU_XFER_DEFAULT));
-      DPU_FOREACH(dpu_set, dpu, i) { cycles_res += cycles_retrieve[i]; }
+      DPU_FOREACH(dpu_set, dpu, i) { cycles_res[i] += cycles_retrieve[i]; }
     }
-#endif
   }
+  for (i = 0; i < nr_of_dpus; ++i)
+    printf("DPU %d clocks_per_sec  = %g\n", i, cycles_res[i] / (p.n_reps));
 #ifdef CYCLES
   printf("DPU cycles  = %g\n", cc / p.n_reps);
-  printf("DPU clocks_per_sec  = %g\n", cycles_res / (p.n_reps * NR_DPUS));
 #elif INSTRUCTIONS
-  printf("DPU clocks_per_sec  = %g\n", cycles_res / (p.n_reps * NR_DPUS));
   printf("DPU instructions  = max: %.0f, diff: %.12g\n",
          cc / (p.n_reps * NR_TASKLETS), (cc - cc_min) / p.n_reps);
   printf("Arithmetic throughput = %g MOP/s\n", cc / (timer.time[2]));

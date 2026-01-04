@@ -6,14 +6,6 @@
 #define NR_ELEM 2040
 #endif
 
-#ifndef IMAGE_DIM
-#define IMAGE_DIM 32
-#endif
-
-#ifndef N_IMAGE
-#define N_IMAGE 128
-#endif
-
 // Structures used by both the host and the dpu to communicate information
 typedef struct {
   uint8_t r;

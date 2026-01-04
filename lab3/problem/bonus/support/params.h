@@ -4,8 +4,7 @@
 #include "common.h"
 
 typedef struct Params {
-  unsigned int n_image;
-  unsigned int image_dim;
+  unsigned int n_pixels;
   int n_warmup;
   int n_reps;
 } Params;
@@ -19,30 +18,24 @@ static void usage() {
                   "\n    -e <E>    # of timed repetition iterations (default=1)"
                   "\n"
                   "\nWorkload-specific options:"
-                  "\n    -n <N>    # of images (default=128 images)"
-                  "\n    -d <D>    dimension of image (default=32)"
+                  "\n    -p <N>    # of pixels (default=131072 pixels)"
                   "\n");
 }
 
 struct Params input_params(int argc, char **argv) {
   struct Params p;
-  p.image_dim = 32;
-  p.n_image = 128;
-  p.n_warmup = 0;
+  p.n_pixels = 131072;
   p.n_reps = 1;
 
   int opt;
-  while ((opt = getopt(argc, argv, "hd:n:a:w:e:")) >= 0) {
+  while ((opt = getopt(argc, argv, "hp:a:w:e:")) >= 0) {
     switch (opt) {
     case 'h':
       usage();
       exit(0);
       break;
-    case 'd':
-      p.image_dim = atoi(optarg);
-      break;
-    case 'n':
-      p.n_image = atoi(optarg);
+    case 'p':
+      p.n_pixels = atoi(optarg);
       break;
     case 'w':
       p.n_warmup = atoi(optarg);

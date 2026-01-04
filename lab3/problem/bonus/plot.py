@@ -1,94 +1,158 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import LogLocator, FuncFormatter
+from matplotlib.ticker import LogLocator, FuncFormatter, ScalarFormatter
 import argparse
 import math
 
-plt.rcParams.update(
-    {
-        "font.size": 20,  # default for all text
-        "axes.titlesize": 28,  # title font size
-        "axes.labelsize": 28,  # x/y label font
-        "xtick.labelsize": 20,  # tick label font
-        "ytick.labelsize": 20,
-        "legend.fontsize": 20,  # legend font
-        "legend.title_fontsize": 22,  # legend font
-    }
-)
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot DPU bandwidth from CSV")
 parser.add_argument(
-    "--input-csv",
-    "-i",
-    default="bonus.csv",
+    "--prefix",
+    "-p",
+    default="sw",
+    choices=["sw", "hw"],
     type=str,
-    help="Path to the CSV file containing bandwidth data",
+    help="Prefix (sw/hw)",
 )
 args = parser.parse_args()
 
+plt.rcParams.update(
+    {
+        "font.size": 18,  # default for all text
+        "axes.titlesize": 24,  # title font size
+        "axes.labelsize": 24,  # x/y label font
+        "xtick.labelsize": 20,  # tick label font
+        "ytick.labelsize": 20,
+        "legend.fontsize": 16,  # legend font
+    }
+)
 # Load CSV
-df = pd.read_csv(args.input_csv)
+df = pd.read_csv(f"{args.prefix}_bonus.csv")
 
 # Ensure correct types
 df["nr_tasklets"] = pd.to_numeric(df["nr_tasklets"])
 df["instructions"] = pd.to_numeric(df["instructions"])
+# df["throughput"] = pd.to_numeric(df["throughput"])
 df["instructions"] /= 1e6
 
-df_pivoted = df[df["nr_tasklets"] == 16].pivot(
-    index="data_type", columns="gs", values="instructions"
-)
-order_rows = ["CHAR", "SHORT", "INT32", "UINT32", "INT64", "UINT64", "FLOAT", "DOUBLE"]
-order_cols = ["ADD", "SUB", "MUL", "DIVIDE"]
-df_pivoted.reindex(index=order_rows, columns=order_cols).to_csv("task3_pivoted.csv")
-# Check if there's an 'operation' column, otherwise create a dummy one
-if "operation" not in df.columns:
-    df["operation"] = "default"
-
 # Get all unique data types
-data_types = sorted(df["data_type"].unique())
+grayscale_methods = ["AVG", "LIG", "LUM"]
+nr_pixels = sorted(df["nr_pixels"].unique())
+
+tasklets = sorted(df["nr_tasklets"].unique())
+for value in ["instructions", "dpu_time"]:
+    for size in nr_pixels:
+        df_pivoted = df[df["nr_pixels"] == size].pivot(
+            index="nr_tasklets", columns="grayscale", values=value
+        )
+        df_pivoted.reindex(columns=grayscale_methods).to_csv(
+            f"{args.prefix}_bonus_{value}_{size}p.csv",
+            index=False,
+            float_format=f"%.{3 if value == 'dpu_time' else 6}f",
+        )
 
 # Define consistent color palette for operations
-operations = sorted(df["operation"].unique())
 colors = plt.cm.tab10.colors
-color_map = {op: colors[i % len(colors)] for i, op in enumerate(operations)}
+color_map = {op: colors[i % len(colors)] for i, op in enumerate(grayscale_methods)}
 
 # Create a separate plot for each data type
-for dtype in data_types:
-    plt.figure(figsize=(10, 6))
-
+for nr_pixel in nr_pixels:
     # Filter data for this data type
-    dtype_data = df[df["data_type"] == dtype]
+    nr_pixel_data = df[df["nr_pixels"] == nr_pixel]
 
-    # Plot each operation
-    for operation, group in dtype_data.groupby("operation"):
-        plt.plot(
+    fig, ax1 = plt.subplots(figsize=(7, 5))
+    ax2 = ax1.twinx()
+
+    # Plot each Grayscale method
+    for i, (grayscale_method, group) in enumerate(nr_pixel_data.groupby("grayscale")):
+        ax1.plot(
             group["nr_tasklets"],
             group["instructions"],
             marker="o",
             markersize=10,
             linestyle="-",
             linewidth=4,
-            label=operation,
-            color=color_map[operation],
+            label=grayscale_method,
+            color=color_map[grayscale_method],
         )
 
-    plt.xlabel("Number of Tasklets")
-    plt.ylabel("Instructions (M)")
-    plt.legend(title="Operation", loc="best")
-    plt.grid(True, linestyle=":", alpha=0.6)
+        baseline = group[group["nr_tasklets"] == 1]["instructions"]
+        if not baseline.empty:
+            baseline_val = baseline.values[0]
+            speedup = baseline_val / group["instructions"]
+            ax2.plot(
+                group["nr_tasklets"],
+                speedup,
+                marker="x",
+                linestyle="--",
+                linewidth=2,
+                label=f"{grayscale_method} time",
+                color=color_map[grayscale_method],
+            )
+    ax1.set_xticks(tasklets)
+    ax2.set_yticks(range(1, 17, 2))
 
-    # Set log scale on y-axis
-    # plt.yscale("log")
-    plt.margins(y=0.02)
-
-    # Ensure x-axis shows all tasklet counts
-    # plt.xlim(df["nr_tasklets"].min() - 0.5, df["nr_tasklets"].max() + 0.5)
+    ax1.set_xlabel("Number of Tasklets")
+    ax1.set_ylabel("Instructions (K)")
+    ax2.set_ylabel("Speedup")
+    ax1.legend(title="Grayscale method", loc="best")
+    ax1.grid(True, linestyle=":", alpha=0.6)
+    ax1.margins(y=0.02)
 
     plt.tight_layout()
 
     # Save figure
-    output_filename = f"instruction_{dtype.lower()}.png"
+    output_filename = f"{args.prefix}_instruction_{nr_pixel}.png"
     plt.savefig(output_filename, dpi=300, bbox_inches="tight")
     print(f"Saved: {output_filename}")
+    plt.close()
 
-# plt.show()
+    if "dpu_time" in df.columns:
+        fig, ax1 = plt.subplots(figsize=(7, 5))
+        ax2 = ax1.twinx()
+
+        # Plot each Grayscale method
+        for i, (grayscale_method, group) in enumerate(
+            nr_pixel_data.groupby("grayscale")
+        ):
+            ax1.plot(
+                group["nr_tasklets"],
+                group["dpu_time"],
+                marker="o",
+                markersize=10,
+                linestyle="-",
+                linewidth=4,
+                label=grayscale_method,
+                color=color_map[grayscale_method],
+            )
+
+            baseline = group[group["nr_tasklets"] == 1]["dpu_time"]
+            if not baseline.empty:
+                baseline_val = baseline.values[0]
+                speedup = baseline_val / group["dpu_time"]
+                ax2.plot(
+                    group["nr_tasklets"],
+                    speedup,
+                    marker="x",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"{grayscale_method} time",
+                    color=color_map[grayscale_method],
+                )
+        ax1.set_xticks(tasklets)
+        ax2.set_yticks(range(1, 17, 2))
+
+        ax1.set_xlabel("Number of Tasklets")
+        ax1.set_ylabel("DPU Kernel Time (ms)")
+        ax2.set_ylabel("Speedup")
+        ax1.legend(title="Grayscale method", loc="best")
+        ax1.grid(True, linestyle=":", alpha=0.6)
+        ax1.margins(y=0.02)
+
+        plt.tight_layout()
+
+        # Save figure
+        output_filename = f"{args.prefix}_time_{nr_pixel}.png"
+        plt.savefig(output_filename, dpi=300, bbox_inches="tight")
+        print(f"Saved: {output_filename}")
+        plt.close()

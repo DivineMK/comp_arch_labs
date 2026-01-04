@@ -24,17 +24,10 @@ parser.add_argument(
     type=str,
     help="Prefix (sw/hw)",
 )
-parser.add_argument(
-    "--input-csv",
-    "-i",
-    default="sw_task2.csv",
-    type=str,
-    help="Path to the CSV file containing bandwidth data",
-)
 args = parser.parse_args()
 
 # Load CSV
-df = pd.read_csv(args.input_csv)
+df = pd.read_csv(f"{args.prefix}_task2.csv")
 
 # Ensure correct types
 df["nr_tasklets"] = pd.to_numeric(df["nr_tasklets"])
@@ -43,7 +36,7 @@ df["instructions"] /= 1e6
 
 baseline = df[df["nr_tasklets"] == 1].set_index("data_type")["instructions"]
 df["speedup"] = baseline[df["data_type"]].to_numpy() / df["instructions"]
-df.to_csv(f"{args.prefix}_task2_spd.csv")
+df.to_csv(f"{args.prefix}_task2_spd.csv", index=False)
 
 df_pivoted = df.pivot(index="nr_tasklets", columns="data_type", values="instructions")
 order = ["CHAR", "SHORT", "INT32", "UINT32", "INT64", "UINT64", "FLOAT", "DOUBLE"]
@@ -95,7 +88,7 @@ for ax in (ax_inst, ax_spd):
     ax.grid(True, linestyle=":", alpha=0.6)
     ax.margins(y=0.02, x=0.02)
     ax.set_xticks(range(1, 25, 2))
-    # ax.tight_layout()
+
 ax_spd.set_yticks(range(1, 25, 2))
 fig_inst.savefig(f"{args.prefix}_instruction.png", dpi=300, bbox_inches="tight")
 fig_spd.savefig(f"{args.prefix}_speedup.png", dpi=300, bbox_inches="tight")

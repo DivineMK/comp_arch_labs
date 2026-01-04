@@ -14,13 +14,6 @@ parser.add_argument(
     help="Prefix (sw/hw)",
 )
 parser.add_argument(
-    "--input-csv",
-    "-i",
-    default="sw_task1.csv",
-    type=str,
-    help="Path to the CSV file containing bandwidth data",
-)
-parser.add_argument(
     "--output-suffix",
     "-o",
     default="bandwidth_combined",
@@ -29,15 +22,15 @@ parser.add_argument(
 )
 args = parser.parse_args()
 # Load CSV
-df = pd.read_csv(args.input_csv)
+df = pd.read_csv(f"{args.prefix}_task1.csv")
 
 plt.rcParams.update(
     {
         "font.size": 16,  # default for all text
         "axes.titlesize": 20,  # title font size
         "axes.labelsize": 20,  # x/y label font
-        "xtick.labelsize": 18,  # tick label font
-        "ytick.labelsize": 18,
+        "xtick.labelsize": 16,  # tick label font
+        "ytick.labelsize": 16,
         "legend.fontsize": 14,  # legend font
     }
 )
@@ -46,8 +39,6 @@ plt.rcParams.update(
 df["num_dpus"] = pd.to_numeric(df["num_dpus"])
 df["data_size_MB"] = pd.to_numeric(df["data_size_MB"])
 
-y_min = min(df["cpu_dpu_bw_GBs"].min(), df["dpu_cpu_bw_GBs"].min())
-y_max = max(df["cpu_dpu_bw_GBs"].max(), df["dpu_cpu_bw_GBs"].max())
 # Define consistent color palette by data size
 transfer_types = sorted(df["transfer_type"].unique())
 sizes = sorted(df["data_size_MB"].unique())
@@ -82,21 +73,24 @@ for transfer in transfer_types:
             color=color_map_size[size],
         )
 
-    plt.xscale("log", base=2)
-    plt.yscale("log", base=2)
-    plt.ylim(y_min * 0.7, y_max * 1.3)
+    # y_min = min(subset["cpu_dpu_bw_GBs"].min(), subset["dpu_cpu_bw_GBs"].min())
+    # y_max = max(subset["cpu_dpu_bw_GBs"].max(), subset["dpu_cpu_bw_GBs"].max())
+    # plt.ylim(y_min * 0.8, y_max * 1.2)
+    plt.xscale("log", base=2.0)
+    plt.yscale("log", base=2.0)
     ax = plt.gca()
     ax.xaxis.set_major_locator(LogLocator(base=2.0))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{int(val)}"))
     ax.yaxis.set_major_locator(LogLocator(base=2.0))
     ax.yaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{int(val)}"))
+
+    plt.margins(x=0.1, y=0.1)
     plt.xlabel("Number of DPUs")
     plt.ylabel("Bandwidth (GB/s, log scale)")
-    # plt.title(f"{transfer.capitalize()} Transfer Bandwidths")
     plt.legend(title="Direction & Data Size", ncol=2)
     plt.grid(True, linestyle=":")
     plt.tight_layout()
-    plt.savefig(f"{args.prefix}_{transfer.lower()}_{args.output_suffix}", dpi=300)
+    plt.savefig(f"{args.prefix}_{transfer.lower()}_{args.output_suffix}.png", dpi=300)
 
 df_combined = df[df["data_size_MB"] == 48]
 plt.figure(figsize=(7, 5))
@@ -127,6 +121,8 @@ ax.xaxis.set_major_locator(LogLocator(base=2.0))
 ax.xaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{int(val)}"))
 ax.yaxis.set_major_locator(LogLocator(base=2.0))
 ax.yaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{int(val)}"))
+
+plt.margins(x=0.1, y=0.1)
 plt.xlabel("Number of DPUs")
 plt.ylabel("Bandwidth (GB/s, log scale)")
 plt.legend(title="Transfer type & Direction", ncol=2)
