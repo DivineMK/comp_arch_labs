@@ -9,5 +9,5 @@ profile*/
 bin/
 logs/
 *.log
-/all.sh
+**/all.sh
 *.csv
