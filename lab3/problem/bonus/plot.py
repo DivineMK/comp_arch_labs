@@ -2,7 +2,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LogLocator, FuncFormatter, ScalarFormatter
 import argparse
-import math
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot DPU bandwidth from CSV")
@@ -10,7 +9,7 @@ parser.add_argument(
     "--prefix",
     "-p",
     default="sw",
-    choices=["sw", "hw"],
+    # choices=["sw", "hw"],
     type=str,
     help="Prefix (sw/hw)",
 )

@@ -39,19 +39,31 @@ static void read_input(pixel_t *A, unsigned int nr_elements) {
 
 // Compute output in the host for verification purposes
 static void grayscale_host(pixel_t *A, unsigned int nr_elements) {
+  uint8_t grayscale;
+#pragma unroll
   for (unsigned int i = 0; i < nr_elements; i++) {
-    uint8_t grayscale;
 #ifdef LIG
     grayscale =
-        (min(min(A[i].r, A[i].g), A[i].b) + max(max(A[i].r, A[i].g), A[i].b)) >>
-        1;
+        (min(min(A[i].r, A[i].g), A[i].b) + max(max(A[i].r, A[i].g), A[i].b)) /
+        2;
+    // min_p = min(min(A[i].r, A[i].g), A[i].b);
+    // max_p = max(max(A[i].r, A[i].g), A[i].b);
+    // grayscale = (min_p + max_p) / 2;
 #elif AVG
+#if OPT
     grayscale =
         (uint32_t)((A[i].r + A[i].g + A[i].b) * 342) >> 10; // 1/3=342>>10
+#else
+    grayscale = (A[i].r + A[i].g + A[i].b) / 3;
+#endif
 #elif LUM
+#if OPT
     grayscale = ((uint32_t)(307 * A[i].r) + (uint32_t)(604 * A[i].g) +
                  (uint32_t)(113 * A[i].b)) >>
                 10;
+#else
+    grayscale = 0.3 * A[i].r + 0.59 * A[i].g + 0.11 * A[i].b;
+#endif
 #else
     printf("Invalid grayscale method\r\n");
     return;
