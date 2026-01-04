@@ -2,7 +2,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LogLocator, FuncFormatter
 import argparse
-import math
 
 plt.rcParams.update(
     {
@@ -99,7 +98,8 @@ for dtype in data_types:
     ax1.set_ylabel("Instructions (M)")
     ax2.set_ylabel("Speedup")
     ax1.set_xticks(nr_tasklets)
-    ax2.set_yticks(range(1, 17, 2))
+    if "INT" not in dtype:
+        ax2.set_yticks(range(1, 17, 2))
 
     # Combine legends
     lines1, labels1 = ax1.get_legend_handles_labels()
@@ -119,6 +119,15 @@ for dtype in data_types:
 
     # --- Plot DPU Time ---
     if "dpu_time" in df.columns:
+        baseline = df[df["nr_tasklets"] == 1].set_index(["data_type", "operation"])[
+            "dpu_time"
+        ]
+        df["speedup"] = (
+            df.set_index(["data_type", "operation"]).index.map(baseline).to_numpy()
+            / df["dpu_time"]
+        )
+        df.to_csv(f"{args.prefix}_task3_spd.csv", index=False)
+
         fig, ax1 = plt.subplots(figsize=(10, 6))
         ax2 = ax1.twinx()
 

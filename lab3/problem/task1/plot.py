@@ -82,7 +82,7 @@ for transfer in transfer_types:
     ax.xaxis.set_major_locator(LogLocator(base=2.0))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{int(val)}"))
     ax.yaxis.set_major_locator(LogLocator(base=2.0))
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{int(val)}"))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{val:.2f}"))
 
     plt.margins(x=0.1, y=0.1)
     plt.xlabel("Number of DPUs")
@@ -91,6 +91,7 @@ for transfer in transfer_types:
     plt.grid(True, linestyle=":")
     plt.tight_layout()
     plt.savefig(f"{args.prefix}_{transfer.lower()}_{args.output_suffix}.png", dpi=300)
+    print(f"Saved fig: {args.prefix}_{transfer.lower()}_{args.output_suffix}.png")
 
 df_combined = df[df["data_size_MB"] == 48]
 plt.figure(figsize=(7, 5))
@@ -120,7 +121,7 @@ ax = plt.gca()
 ax.xaxis.set_major_locator(LogLocator(base=2.0))
 ax.xaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{int(val)}"))
 ax.yaxis.set_major_locator(LogLocator(base=2.0))
-ax.yaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{int(val)}"))
+ax.yaxis.set_major_formatter(FuncFormatter(lambda val, pos: f"{val:.2f}"))
 
 plt.margins(x=0.1, y=0.1)
 plt.xlabel("Number of DPUs")
@@ -129,6 +130,7 @@ plt.legend(title="Transfer type & Direction", ncol=2)
 plt.grid(True, linestyle=":")
 plt.tight_layout()
 plt.savefig(f"{args.prefix}_all_{args.output_suffix}.png", dpi=300)
+print(f"Saved fig: {args.prefix}_all_{args.output_suffix}.png")
 
 # plt.show()
 

@@ -33,6 +33,7 @@ df["nr_tasklets"] = pd.to_numeric(df["nr_tasklets"])
 df["instructions"] = pd.to_numeric(df["instructions"])
 df["instructions"] /= 1e6
 
+
 def main():
     if "dpu_time" in df.columns:
         baseline = df[df["nr_tasklets"] == 1].set_index("data_type")["dpu_time"]
@@ -42,17 +43,18 @@ def main():
         print("Missing dpu_time column")
         return
 
-
-    df_pivoted = df.pivot(index="nr_tasklets", columns="data_type", values="instructions")
+    df_pivoted = df.pivot(
+        index="nr_tasklets", columns="data_type", values="instructions"
+    )
     order = ["CHAR", "SHORT", "INT32", "UINT32", "INT64", "UINT64", "FLOAT", "DOUBLE"]
     df_pivoted[order].to_csv(f"{args.prefix}_task2_pivoted.csv")
-# Get all unique data types
+    # Get all unique data types
     data_types = sorted(df["data_type"].unique())
-# group data types to plots
+    # group data types to plots
     colors = plt.cm.tab10.colors
     color_map = {op: colors[i % len(colors)] for i, op in enumerate(data_types)}
 
-# Create a separate plot for each data type
+    # Create a separate plot for each data type
     fig_inst, ax_inst = plt.subplots(figsize=(10, 6))
     fig_spd, ax_spd = plt.subplots(figsize=(10, 6))
 
@@ -94,9 +96,13 @@ def main():
         ax.margins(y=0.02, x=0.02)
         ax.set_xticks(range(1, 25, 2))
 
-    ax_spd.set_yticks(range(1, 25, 2))
+    if args.prefix == "sw":
+        ax_spd.set_yticks(range(1, 25, 2))
+    else:
+        ax_spd.set_yticks(range(1, 13, 2))
     fig_inst.savefig(f"{args.prefix}_instruction.png", dpi=300, bbox_inches="tight")
     fig_spd.savefig(f"{args.prefix}_speedup.png", dpi=300, bbox_inches="tight")
+
 
 if __name__ == "__main__":
     main()
