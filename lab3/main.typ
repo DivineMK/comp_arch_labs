@@ -20,19 +20,19 @@ The obtained plots for every transfer type are provided below:
 #subpar.grid(
   columns: 3,
   figure(
-    image("problem/task1/serial_bandwidth_combined.png"),
+    image("problem/task1/sw_serial_bandwidth_combined.png"),
     caption: [Serial transfer],
   ),
   <serial_transfer>,
   figure(
-    image("problem/task1/parallel_bandwidth_combined.png"),
+    image("problem/task1/sw_parallel_bandwidth_combined.png"),
     caption: [Parallel transfer],
   ),
 
   <parallel_transfer>,
 
   figure(
-    image("problem/task1/broadcast_bandwidth_combined.png"),
+    image("problem/task1/sw_broadcast_bandwidth_combined.png"),
     caption: [Broadcast transfer],
   ),
   <broadcast_transfer>,
@@ -40,7 +40,7 @@ The obtained plots for every transfer type are provided below:
   grid.cell(
     colspan: 3,
     figure(
-      image("problem/task1/bandwidth_combined.png", width: 100% / 3),
+      image("problem/task1/sw_all_bandwidth_combined.png", width: 100% / 3),
       caption: [Transfer type comparison with 48MB/DPU],
     ),
   ),
@@ -56,7 +56,7 @@ Note that in @broadcast_transfer, the lines for data direction from DPU to CPU a
 = Task 2/4: AXPY
 
 In this task, AXPY operation instruction count is measured across different data types with (NR_DPUS=1).
-// #let task2 = csv("problem/task2/task2_pivoted.csv")
+// #let task2 = csv("problem/task2/sw_task2_pivoted.csv")
 //
 // #figure(
 //   table(
@@ -69,13 +69,13 @@ In this task, AXPY operation instruction count is measured across different data
 #subpar.grid(
   columns: 2,
   figure(
-    image("problem/task2/instruction.png"),
+    image("problem/task2/sw_instruction.png"),
     caption: [Instruction count (in unit of 1e6)],
   ),
   <task2_inst>,
 
   figure(
-    image("problem/task2/speedup.png"),
+    image("problem/task2/sw_speedup.png"),
     caption: [Speedup from NR_TASKLETS=1],
   ),
 
@@ -96,47 +96,47 @@ In this task, instruction count is obtained with respect to arithmetic operation
 #subpar.grid(
   columns: 3,
   figure(
-    image("problem/task3/instruction_char.png"),
+    image("problem/task3/sw_instruction_char.png"),
     caption: [CHAR],
   ),
   <task3_char>,
   figure(
-    image("problem/task3/instruction_short.png"),
+    image("problem/task3/sw_instruction_short.png"),
     caption: [SHORT],
   ),
 
   <task3_short>,
   figure(
-    image("problem/task3/instruction_int32.png"),
+    image("problem/task3/sw_instruction_int32.png"),
     caption: [INT32],
   ),
   <task3_int32>,
 
   figure(
-    image("problem/task3/instruction_uint32.png"),
+    image("problem/task3/sw_instruction_uint32.png"),
     caption: [UINT32],
   ),
   <task3_uint32>,
   figure(
-    image("problem/task3/instruction_int64.png"),
+    image("problem/task3/sw_instruction_int64.png"),
     caption: [INT64],
   ),
 
   <task3_int64>,
   figure(
-    image("problem/task3/instruction_int64.png"),
+    image("problem/task3/sw_instruction_int64.png"),
     caption: [INT64],
   ),
   <task3_int64>,
 
   figure(
-    image("problem/task3/instruction_float.png"),
+    image("problem/task3/sw_instruction_float.png"),
     caption: [FLOAT],
   ),
   <task3_float>,
 
   figure(
-    image("problem/task3/instruction_double.png"),
+    image("problem/task3/sw_instruction_double.png"),
     caption: [DOUBLE],
   ),
   <task3_double>,
@@ -146,7 +146,7 @@ In this task, instruction count is obtained with respect to arithmetic operation
 )
 
 @task3_table are provided to show better quantitative results.
-#let task3 = csv("problem/task3/task3_pivoted.csv")
+#let task3 = csv("problem/task3/sw_task3_pivoted.csv")
 
 #figure(
   table(
@@ -185,14 +185,14 @@ In this task, instruction count for different methods of vector reduction is mea
 #let sizes_label = ("16KB", "1MB", "16MB")
 #let files_inst = (
   for size in sizes {
-    (csv("problem/task4/" + "task4_pivoted_instructions_" + str(size) + "KB.csv"),)
+    (csv("problem/task4/sw_" + "task4_pivoted_instructions_" + str(size) + "KB.csv"),)
   }
 )
-#let files_time = (
-  for size in sizes {
-    (csv("problem/task4/" + "task4_pivoted_dpu_time_" + str(size) + "KB.csv"),)
-  }
-)
+// #let files_time = (
+//   for size in sizes {
+//     (csv("problem/task4/sw_" + "task4_pivoted_dpu_time_" + str(size) + "KB.csv"),)
+//   }
+// )
 #let task4_table(files, lbl) = {
   let merged-data-rows = ()
   let original-header = files.first().first()
@@ -233,16 +233,16 @@ In this task, instruction count for different methods of vector reduction is mea
 #subpar.grid(
   columns: 3,
   figure(
-    image("problem/task4/instruction_16.png"),
+    image("problem/task4/sw_instruction_16.png"),
     caption: [16kB],
   ),
   figure(
-    image("problem/task4/instruction_1024.png"),
+    image("problem/task4/sw_instruction_1024.png"),
     caption: [1MB],
   ),
 
   figure(
-    image("problem/task4/instruction_16384.png"),
+    image("problem/task4/sw_instruction_16384.png"),
     caption: [16MB],
   ),
 
@@ -250,3 +250,148 @@ In this task, instruction count for different methods of vector reduction is mea
   caption: [Task 4 results, instruction count in unit of 1e6],
 )
 From @task4_table, we can see that SINGLE_NO version is optimal for all data sizes, which can be explained by the overhead of synchronization. The overhead of synchronization is much less significant at larger data sizes where the result calculation step dominates. From results of data size 16KB, barrier introduces very high overhead (45%) compared to handshake (2.8%) and mutex (0.25%). As a sanity check, this order of overhead holds true for all data sizes.
+
+= Bonus
+
+== Task 1
+#subpar.grid(
+  columns: 3,
+  figure(
+    image("problem/task1/hw_serial_bandwidth_combined.png"),
+    caption: [Serial transfer],
+  ),
+  <serial_transfer_hw>,
+  figure(
+    image("problem/task1/hw_parallel_bandwidth_combined.png"),
+    caption: [Parallel transfer],
+  ),
+
+  <parallel_transfer_hw>,
+
+  figure(
+    image("problem/task1/hw_broadcast_bandwidth_combined.png"),
+    caption: [Broadcast transfer],
+  ),
+  <broadcast_transfer_hw>,
+
+  grid.cell(
+    colspan: 3,
+    figure(
+      image("problem/task1/hw_all_bandwidth_combined.png", width: 100% / 3),
+      caption: [Transfer type comparison with 48MB/DPU],
+    ),
+  ),
+  caption: [Task 1 plots],
+)
+
+== Task 2
+#subpar.grid(
+  columns: 2,
+  figure(
+    image("problem/task2/hw_instruction.png"),
+    caption: [Instruction count (in unit of 1e6)],
+  ),
+  <task2_inst_hw>,
+
+  figure(
+    image("problem/task2/hw_speedup.png"),
+    caption: [Speedup from NR_TASKLETS=1],
+  ),
+
+  <task2_spd_hw>,
+  caption: [Results with respect to different NR_TASKLETS],
+)
+
+== Task 3
+#subpar.grid(
+  columns: 3,
+  figure(
+    image("problem/task3/hw_instruction_char.png"),
+    caption: [CHAR],
+  ),
+  <task3_char_hw>,
+  figure(
+    image("problem/task3/hw_instruction_short.png"),
+    caption: [SHORT],
+  ),
+
+  <task3_short_hw>,
+  figure(
+    image("problem/task3/hw_instruction_int32.png"),
+    caption: [INT32],
+  ),
+  <task3_int32_hw>,
+
+  figure(
+    image("problem/task3/hw_instruction_uint32.png"),
+    caption: [UINT32],
+  ),
+  <task3_uint32_hw>,
+  figure(
+    image("problem/task3/hw_instruction_int64.png"),
+    caption: [INT64],
+  ),
+
+  <task3_int64_hw>,
+  figure(
+    image("problem/task3/hw_instruction_int64.png"),
+    caption: [INT64],
+  ),
+  <task3_int64_hw>,
+
+  figure(
+    image("problem/task3/hw_instruction_float.png"),
+    caption: [FLOAT],
+  ),
+  <task3_float_hw>,
+
+  figure(
+    image("problem/task3/hw_instruction_double.png"),
+    caption: [DOUBLE],
+  ),
+  <task3_double_hw>,
+
+  caption: [Results with respect to different NR_TASKLETS],
+  label: <task3_fig_hw>,
+)
+
+#let task3_hw = csv("problem/task3/hw_task3_pivoted.csv")
+
+#figure(
+  table(
+    columns: task3_hw.first().len(),
+    ..task3_hw.flatten(),
+  ),
+  caption: [Instruction count (in unit of 1e6, NR_DPUS=1, NR_TASKLETS=16)],
+) <task3_table_hw>
+
+== Task 4
+#let sizes_hw = (16, 1024, 16384)
+#let sizes_label_hw = ("16KB", "1MB", "16MB")
+#let files_inst_hw = (
+  for size in sizes_hw {
+    (csv("problem/task4/hw_" + "task4_pivoted_instructions_" + str(size) + "KB.csv"),)
+  }
+)
+
+#task4_table(files_inst_hw, "task4_table_hw")
+
+#subpar.grid(
+  columns: 3,
+  figure(
+    image("problem/task4/hw_instruction_16.png"),
+    caption: [16kB],
+  ),
+  figure(
+    image("problem/task4/hw_instruction_1024.png"),
+    caption: [1MB],
+  ),
+
+  figure(
+    image("problem/task4/hw_instruction_16384.png"),
+    caption: [16MB],
+  ),
+
+  label: <task4_hw>,
+  caption: [Task 4 results, instruction count in unit of 1e6],
+)
