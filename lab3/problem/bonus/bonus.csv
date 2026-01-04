@@ -1,0 +1,3 @@
+nr_dpus,nr_tasklets,gs,instructions,throughput
+1,1,LIG,302624,16.7408
+1,1,AVG,3274048,18.9139
