@@ -7,9 +7,17 @@ import math
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot DPU bandwidth from CSV")
 parser.add_argument(
+    "--prefix",
+    "-p",
+    default="sw",
+    choices=["sw", "hw"],
+    type=str,
+    help="Prefix (sw/hw)",
+)
+parser.add_argument(
     "--input-csv",
     "-i",
-    default="task4.csv",
+    default="sw_task4.csv",
     type=str,
     help="Path to the CSV file containing bandwidth data",
 )
@@ -32,7 +40,7 @@ df = pd.read_csv(args.input_csv)
 df["nr_tasklets"] = pd.to_numeric(df["nr_tasklets"])
 df["instructions"] = pd.to_numeric(df["instructions"])
 # df["throughput"] = pd.to_numeric(df["throughput"])
-df["instructions"] /= 1e6
+df["instructions"] /= 1e3
 
 # Get all unique data types
 sync_methods = ["SINGLE_NO", "SINGLE_MUTEX", "TREE_BARRIER", "TREE_HANDSHAKE"]
@@ -44,7 +52,7 @@ for value in ["instructions", "dpu_time"]:
             index="nr_tasklets", columns="sync", values=value
         )
         df_pivoted.reindex(columns=sync_methods).to_csv(
-            f"task4_pivoted_{value}_{size}KB.csv"
+            f"{args.prefix}_task4_pivoted_{value}_{size}KB.csv"
         )
 
 # Define consistent color palette for operations
@@ -86,7 +94,7 @@ for input_size in input_sizes:
     ax1.set_xticks(tasklets)
 
     ax1.set_xlabel("Number of Tasklets")
-    ax1.set_ylabel("Instructions (M)")
+    ax1.set_ylabel("Instructions (K)")
     ax1.legend(title="Sync method", loc="best")
     ax1.grid(True, linestyle=":", alpha=0.6)
     ax1.margins(y=0.02)
@@ -98,7 +106,7 @@ for input_size in input_sizes:
     plt.tight_layout()
 
     # Save figure
-    output_filename = f"instruction_{input_size}.png"
+    output_filename = f"{args.prefix}_instruction_{input_size}.png"
     plt.savefig(output_filename, dpi=300, bbox_inches="tight")
     print(f"Saved: {output_filename}")
 

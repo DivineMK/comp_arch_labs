@@ -6,9 +6,17 @@ import argparse
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot DPU bandwidth from CSV")
 parser.add_argument(
+    "--prefix",
+    "-p",
+    default="sw",
+    choices=["sw", "hw"],
+    type=str,
+    help="Prefix (sw/hw)",
+)
+parser.add_argument(
     "--input-csv",
     "-i",
-    default="task1.csv",
+    default="sw_task1.csv",
     type=str,
     help="Path to the CSV file containing bandwidth data",
 )
@@ -88,7 +96,7 @@ for transfer in transfer_types:
     plt.legend(title="Direction & Data Size", ncol=2)
     plt.grid(True, linestyle=":")
     plt.tight_layout()
-    plt.savefig(f"{transfer.lower()}_{args.output_suffix}", dpi=300)
+    plt.savefig(f"{args.prefix}_{transfer.lower()}_{args.output_suffix}", dpi=300)
 
 df_combined = df[df["data_size_MB"] == 48]
 plt.figure(figsize=(7, 5))
@@ -124,7 +132,7 @@ plt.ylabel("Bandwidth (GB/s, log scale)")
 plt.legend(title="Transfer type & Direction", ncol=2)
 plt.grid(True, linestyle=":")
 plt.tight_layout()
-plt.savefig(f"{args.output_suffix}.png", dpi=300)
+plt.savefig(f"{args.prefix}_all_{args.output_suffix}.png", dpi=300)
 
 # plt.show()
 

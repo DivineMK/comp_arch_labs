@@ -17,9 +17,17 @@ plt.rcParams.update(
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Plot DPU bandwidth from CSV")
 parser.add_argument(
+    "--prefix",
+    "-p",
+    default="sw",
+    choices=["sw", "hw"],
+    type=str,
+    help="Prefix (sw/hw)",
+)
+parser.add_argument(
     "--input-csv",
     "-i",
-    default="task2.csv",
+    default="sw_task2.csv",
     type=str,
     help="Path to the CSV file containing bandwidth data",
 )
@@ -35,11 +43,11 @@ df["instructions"] /= 1e6
 
 baseline = df[df["nr_tasklets"] == 1].set_index("data_type")["instructions"]
 df["speedup"] = baseline[df["data_type"]].to_numpy() / df["instructions"]
-df.to_csv("task2_spd.csv")
+df.to_csv(f"{args.prefix}_task2_spd.csv")
 
 df_pivoted = df.pivot(index="nr_tasklets", columns="data_type", values="instructions")
 order = ["CHAR", "SHORT", "INT32", "UINT32", "INT64", "UINT64", "FLOAT", "DOUBLE"]
-df_pivoted[order].to_csv("task2_pivoted.csv")
+df_pivoted[order].to_csv(f"{args.prefix}_task2_pivoted.csv")
 # Get all unique data types
 data_types = sorted(df["data_type"].unique())
 # group data types to plots
@@ -89,8 +97,8 @@ for ax in (ax_inst, ax_spd):
     ax.set_xticks(range(1, 25, 2))
     # ax.tight_layout()
 ax_spd.set_yticks(range(1, 25, 2))
-fig_inst.savefig("instruction.png", dpi=300, bbox_inches="tight")
-fig_spd.savefig("speedup.png", dpi=300, bbox_inches="tight")
+fig_inst.savefig(f"{args.prefix}_instruction.png", dpi=300, bbox_inches="tight")
+fig_spd.savefig(f"{args.prefix}_speedup.png", dpi=300, bbox_inches="tight")
 
 # Save figure
 
