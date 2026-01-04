@@ -10,3 +10,4 @@ bin/
 logs/
 *.log
 /all.sh
+*.csv
