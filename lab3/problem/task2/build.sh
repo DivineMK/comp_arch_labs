@@ -1,5 +1,8 @@
 #!/bin/bash
-rm $(dirname "$0")/bin -r
+set -e
+
+rm $(dirname "$0")/bin -rf
+rm $(dirname "$0")/profile -rf
 mkdir -p $(dirname "$0")/profile
 
 out_csv="$(dirname "$0")/task2.csv"

@@ -15,6 +15,7 @@
 #include "../support/common.h"
 #include "../support/cyclecount.h"
 
+#define INSTRUCTIONS
 // Input and output arguments
 __host dpu_arguments_t DPU_INPUT_ARGUMENTS;
 __host dpu_results_t DPU_RESULTS[NR_TASKLETS];
@@ -43,7 +44,6 @@ int main(void) {
   // Kernel
   return kernels[DPU_INPUT_ARGUMENTS.kernel]();
 }
-
 // main_kernel1
 int main_kernel1() {
   unsigned int tasklet_id = me();

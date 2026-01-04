@@ -26,7 +26,7 @@ int main(void) {
   // Kernel
   return kernels[DPU_INPUT_ARGUMENTS.kernel]();
 }
-
+#define SUB
 static void operation(T *bufferY, T *bufferX, unsigned int l_size) {
 #pragma unroll
   for (unsigned int i = 0; i < l_size; i++) {

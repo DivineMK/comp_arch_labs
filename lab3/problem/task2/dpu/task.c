@@ -65,6 +65,7 @@ int main_kernel1() {
       DPU_INPUT_ARGUMENTS.size; // Input size per DPU in bytes
   uint32_t input_size_dpu_bytes_transfer =
       DPU_INPUT_ARGUMENTS.transfer_size; // Transfer input size per DPU in bytes
+                                         // 8-byte aligned
   T alpha = DPU_INPUT_ARGUMENTS.alpha;   // alpha (a in axpy)
 
   // Address of the current processing block in MRAM

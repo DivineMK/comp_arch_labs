@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
   // Allocate DPUs
   struct dpu_set_t dpu_set, dpu;
   uint32_t nr_of_dpus;
-  DPU_ASSERT(dpu_alloc(NR_DPUS, "backend=simulator", &dpu_set));
+  DPU_ASSERT(dpu_alloc(NR_DPUS, NULL, &dpu_set));
   DPU_ASSERT(
       dpu_get_nr_dpus(dpu_set, &nr_of_dpus)); // Number of DPUs in the DPU set
   printf("Allocated %d DPU(s)\t", nr_of_dpus);

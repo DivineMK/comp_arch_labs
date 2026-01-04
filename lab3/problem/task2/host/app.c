@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
   // Allocate DPUs
   struct dpu_set_t dpu_set, dpu;
   uint32_t nr_of_dpus;
-  DPU_ASSERT(dpu_alloc(NR_DPUS, "backend=simulator", &dpu_set));
+  DPU_ASSERT(dpu_alloc(NR_DPUS, NULL, &dpu_set));
   DPU_ASSERT(
       dpu_get_nr_dpus(dpu_set, &nr_of_dpus)); // Number of DPUs in the DPU set
   printf("Allocated %d DPU(s)\t", nr_of_dpus);
@@ -72,44 +72,46 @@ int main(int argc, char **argv) {
   DPU_ASSERT(dpu_load(dpu_set, DPU_BINARY, NULL));
 
   // Input size
-  const unsigned int input_size = p.input_size; // Total input size
-  const unsigned int input_size_8bytes =
-      ((input_size * sizeof(T)) % 8) != 0
-          ? roundup(input_size, 8)
-          : input_size; // Total input size, 8-byte aligned
-  const unsigned int input_size_dpu =
-      divceil(input_size, nr_of_dpus); // Input size per DPU (max.)
-  const unsigned int input_size_dpu_8bytes =
-      ((input_size_dpu * sizeof(T)) % 8) != 0
-          ? roundup(input_size_dpu, 8)
-          : input_size_dpu; // Input size per DPU (max.), 8-byte aligned
+  const unsigned int nr_elements = p.input_size; // Total input size
+  const unsigned int nr_elements_8bytes =
+      ((nr_elements * sizeof(T)) % 8) != 0
+          ? roundup(nr_elements, 8)
+          : nr_elements; // Total input size, 8-byte aligned
+  const unsigned int nr_elements_dpu =
+      divceil(nr_elements, nr_of_dpus); // Input size per DPU (max.)
+  const unsigned int nr_elements_dpu_8bytes =
+      ((nr_elements_dpu * sizeof(T)) % 8) != 0
+          ? roundup(nr_elements_dpu, 8)
+          : nr_elements_dpu; // Input size per DPU (max.), 8-byte aligned
 
   // Input/output allocation in host main memory
-  X = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
-  Y = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
-  Y_host = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
+  X = malloc(nr_elements_dpu_8bytes * nr_of_dpus * sizeof(T));
+  Y = malloc(nr_elements_dpu_8bytes * nr_of_dpus * sizeof(T));
+  Y_host = malloc(nr_elements_dpu_8bytes * nr_of_dpus * sizeof(T));
   T *bufferX = X;
   T *bufferY = Y;
   T alpha = p.alpha;
   unsigned int i = 0;
+  printf("test: %u\r\n",
+         nr_elements_dpu_8bytes * (nr_of_dpus - 1) - nr_elements_8bytes);
 
   // Create an input file with arbitrary data
-  read_input(X, Y, input_size);
-  memcpy(Y_host, Y, input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
+  read_input(X, Y, nr_elements);
+  memcpy(Y_host, Y, nr_elements_dpu_8bytes * nr_of_dpus * sizeof(T));
 
   // Input arguments
   unsigned int kernel = 0;
   dpu_arguments_t input_arguments[NR_DPUS];
   for (i = 0; i < nr_of_dpus - 1; i++) {
-    input_arguments[i].size = input_size_dpu_8bytes * sizeof(T);
-    input_arguments[i].transfer_size = input_size_dpu_8bytes * sizeof(T);
+    input_arguments[i].size = nr_elements_dpu_8bytes * sizeof(T);
+    input_arguments[i].transfer_size = nr_elements_dpu_8bytes * sizeof(T);
     input_arguments[i].kernel = kernel;
     input_arguments[i].alpha = alpha;
   }
   input_arguments[nr_of_dpus - 1].size =
-      (input_size_8bytes - input_size_dpu_8bytes * (NR_DPUS - 1)) * sizeof(T);
+      (nr_elements_8bytes - nr_elements_dpu_8bytes * (NR_DPUS - 1)) * sizeof(T);
   input_arguments[nr_of_dpus - 1].transfer_size =
-      input_size_dpu_8bytes * sizeof(T); // need to be 8-bytes aligned
+      nr_elements_dpu_8bytes * sizeof(T); // need to be 8-bytes aligned
   input_arguments[nr_of_dpus - 1].kernel = kernel;
   input_arguments[nr_of_dpus - 1].alpha = alpha;
   // Loop over main kernel
@@ -118,7 +120,7 @@ int main(int argc, char **argv) {
     // Compute output on CPU (verification purposes)
     if (rep >= p.n_warmup)
       start(&timer, 0, rep - p.n_warmup);
-    axpy_host(X, Y_host, alpha, input_size);
+    axpy_host(X, Y_host, alpha, nr_elements);
     if (rep >= p.n_warmup)
       stop(&timer, 0);
 
@@ -140,33 +142,33 @@ int main(int argc, char **argv) {
     //@@ INSERT SERIAL CPU-DPU TRANSFER HERE
     DPU_FOREACH(dpu_set, dpu, i) {
       DPU_ASSERT(dpu_copy_to(dpu, DPU_MRAM_HEAP_POINTER_NAME, 0,
-                             bufferX + input_size_dpu_8bytes * i,
-                             input_size_dpu_8bytes * sizeof(T)));
+                             bufferX + nr_elements_dpu_8bytes * i,
+                             nr_elements_dpu_8bytes * sizeof(T)));
     }
     DPU_FOREACH(dpu_set, dpu, i) {
       DPU_ASSERT(dpu_copy_to(dpu, DPU_MRAM_HEAP_POINTER_NAME,
-                             input_size_dpu_8bytes * sizeof(T),
-                             bufferY + input_size_dpu_8bytes * i,
-                             input_size_dpu_8bytes * sizeof(T)));
+                             nr_elements_dpu_8bytes * sizeof(T),
+                             bufferY + nr_elements_dpu_8bytes * i,
+                             nr_elements_dpu_8bytes * sizeof(T)));
     }
 
 #else // Parallel transfers
 
     //@@ INSERT PARALLEL CPU-DPU TRANSFER HERE
     DPU_FOREACH(dpu_set, dpu, i) {
-      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferX + input_size_dpu_8bytes * i));
+      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferX + nr_elements_dpu_8bytes * i));
     }
     DPU_ASSERT(
         dpu_push_xfer(dpu_set, DPU_XFER_TO_DPU, DPU_MRAM_HEAP_POINTER_NAME, 0,
-                      input_size_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
+                      nr_elements_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
 
     DPU_FOREACH(dpu_set, dpu, i) {
-      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferY + input_size_dpu_8bytes * i));
+      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferY + nr_elements_dpu_8bytes * i));
     }
     DPU_ASSERT(
         dpu_push_xfer(dpu_set, DPU_XFER_TO_DPU, DPU_MRAM_HEAP_POINTER_NAME,
-                      input_size_dpu_8bytes * sizeof(T),
-                      input_size_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
+                      nr_elements_dpu_8bytes * sizeof(T),
+                      nr_elements_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
 
 #endif
     if (rep >= p.n_warmup)
@@ -202,21 +204,21 @@ int main(int argc, char **argv) {
 
     DPU_FOREACH(dpu_set, dpu, i) {
       DPU_ASSERT(dpu_copy_from(dpu, DPU_MRAM_HEAP_POINTER_NAME,
-                               input_size_dpu_8bytes * sizeof(T),
-                               bufferY + input_size_dpu_8bytes * i,
-                               input_size_dpu_8bytes * sizeof(T)));
+                               nr_elements_dpu_8bytes * sizeof(T),
+                               bufferY + nr_elements_dpu_8bytes * i,
+                               nr_elements_dpu_8bytes * sizeof(T)));
     }
 
 #else // Parallel transfers
 
     //@@ INSERT PARALLEL DPU-CPU TRANSFER HERE
     DPU_FOREACH(dpu_set, dpu, i) {
-      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferY + input_size_dpu_8bytes * i));
+      DPU_ASSERT(dpu_prepare_xfer(dpu, bufferY + nr_elements_dpu_8bytes * i));
     }
     DPU_ASSERT(
         dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, DPU_MRAM_HEAP_POINTER_NAME,
-                      input_size_dpu_8bytes * sizeof(T),
-                      input_size_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
+                      nr_elements_dpu_8bytes * sizeof(T),
+                      nr_elements_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
 
 #endif
     if (rep >= p.n_warmup)
@@ -306,15 +308,15 @@ int main(int argc, char **argv) {
   double time_kernel = timer.time[2] / (1e6 * p.n_reps);
   double time_dpu = timer.time[3] / (1e6 * p.n_reps);
   printf("\r\nCPU-DPU bandwidth (GB/s): %f\r\n",
-         (input_size * 8) / (time_cpu * (1 << 30)));
+         (nr_elements * 8) / (time_cpu * (1 << 30)));
   printf("DPU kernels bandwidth (GB/s): %f\r\n",
-         (input_size * 8) / (time_kernel * (1 << 30)));
+         (nr_elements * 8) / (time_kernel * (1 << 30)));
   printf("DPU-CPU bandwidth (GB/s): %f\r\n",
-         (input_size * 8) / (time_dpu * (1 << 30)));
+         (nr_elements * 8) / (time_dpu * (1 << 30)));
 
   // Check output
   bool status = true;
-  for (i = 0; i < input_size; i++) {
+  for (i = 0; i < nr_elements_dpu_8bytes * nr_of_dpus; i++) {
     if (Y_host[i] != Y[i]) {
       status = false;
       printf("%d: %u -- %u\n", i, Y_host[i], Y[i]);

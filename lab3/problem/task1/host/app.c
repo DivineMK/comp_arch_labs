@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
   // Allocate DPUs
   struct dpu_set_t dpu_set, dpu;
   uint32_t nr_of_dpus;
-  DPU_ASSERT(dpu_alloc(NR_DPUS, "backend=simulator", &dpu_set));
+  DPU_ASSERT(dpu_alloc(NR_DPUS, NULL, &dpu_set));
   DPU_ASSERT(
       dpu_get_nr_dpus(dpu_set, &nr_of_dpus)); // Number of DPUs in the DPU set
   printf("Allocated %d DPU(s)\t", nr_of_dpus);
@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
   const unsigned int input_size_dpu =
       divceil(input_size, nr_of_dpus); // Input size per DPU (max.)
   const unsigned int input_size_dpu_8bytes =
-      roundup(input_size_dpu, 8); // Input size per DPU (max.), 8-byte aligned
+      input_size_dpu; // 8-byte aligned with int64_t
 
   // Input/output allocation in host main memory
   X = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
