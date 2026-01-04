@@ -23,8 +23,10 @@ struct ghb_entry {
 
 // Index table circular buffer
 template <size_t N> struct it_cb {
-  void push(const champsim::block_number::difference_type &delta,
+  void push(const champsim::address &ip,
+            const champsim::block_number::difference_type &delta,
             idx_t ghb_idx) {
+    buf[head].ip = ip;
     buf[head].delta = delta;
     buf[head].ghb_idx = ghb_idx;
     head = (head + 1) % N;
@@ -58,16 +60,19 @@ template <size_t N> struct ghb_cb {
 
 struct ghb_dc : public champsim::modules::prefetcher {
 
-  constexpr static std::size_t IT_SIZE = 256;
-  constexpr static int PREFETCH_WIDTH = 1;
-  constexpr static int PREFETCH_DEPTH = 1;
-  constexpr static int CONFIDENCE = 2;
+  constexpr static std::size_t IT_SIZE = 512;
+  constexpr static int PREFETCH_WIDTH = 2;
+  constexpr static int PREFETCH_DEPTH = 2;
+  constexpr static int PREFETCH_DEGREE = 1;
+  // constexpr static int CONFIDENCE = 2;
 
   ghb_cb<GHB_SIZE> ghb;
   it_cb<IT_SIZE> index_table; // FIFO
 
-  std::array<champsim::address, PREFETCH_DEPTH * PREFETCH_WIDTH> prefetches;
-  uint8_t prefetches_head{0};
+  std::array<champsim::address,
+             PREFETCH_DEPTH * PREFETCH_WIDTH * PREFETCH_DEGREE>
+      prefetches;
+  uint8_t prefetches_tail{0};
 
 public:
   using champsim::modules::prefetcher::prefetcher;

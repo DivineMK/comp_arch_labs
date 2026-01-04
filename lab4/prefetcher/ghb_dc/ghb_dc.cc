@@ -32,13 +32,14 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
     return 0;
 
   size_t it_idx, ghb_idx = 0;
-  // index by both delta
+  // index by delta
   // FIFO replacement
   bool key_in_it = false;
   if (index_table.size > 0) {
     for (size_t i = 1; i <= index_table.size; i++) {
       it_idx = unsigned_sub(index_table.head, i, index_table.size);
-      if (index_table.buf[it_idx].delta == delta) {
+      // if (index_table.buf[it_idx].delta == delta) {
+      if (index_table.buf[it_idx].ip == ip) {
         key_in_it = true;
         break;
       }
@@ -46,12 +47,13 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
   }
 
   if (!key_in_it) {
-    index_table.push(delta, ghb.head);
+    index_table.push(ip, delta, ghb.head);
     ghb.push(delta, addr, GHB_SIZE); // GHB_SIZE == null
     return metadata_in;
   }
 
   // check if ghb_idx point to itself or point to entry with different delta
+  // can happen due to ghb pointer wrapping back
   if (ghb.head == index_table.buf[it_idx].ghb_idx ||
       delta != ghb.buf[index_table.buf[it_idx].ghb_idx].delta)
     ghb_idx = GHB_SIZE;
@@ -67,31 +69,52 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
 
   size_t pref_cnt_width{0};
   size_t ghb_tmp = 0;
+  champsim::block_number cl_addr_tmp;
 
   // have a counter to count remaining n0 prefetches
   size_t counter = PREFETCH_DEPTH * PREFETCH_WIDTH;
-  prefetches_head = 0;
+  prefetches_tail = 0;
   while (counter > 0 && ghb_idx_old != GHB_SIZE) {
 
     ghb_tmp = unsigned_sub(ghb_idx_new, ghb_idx_old, GHB_SIZE);
     pref_cnt_width = (ghb_tmp <= counter) ? ghb_tmp : counter;
-    pref_cnt_width = 1;
+    // pref_cnt_width = 1;
+    prefetches_tail += (uint8_t)pref_cnt_width;
 
-    for (size_t i = 1; i < pref_cnt_width; i++) {
+    // TODO: reorder this logic to make it more readable
+    size_t i = 1;
+    if (ghb_tmp > counter)
+      i = 0;
+
+    for (; i < pref_cnt_width; i++) {
       // if (prefetches_head > 0 &&
       //     champsim::page_number{prefetches[prefetches_head - 1]} ==
       //         champsim::page_number{ghb.buf[ghb_idx_old + i].cl_addr})
-      cl_addr += ghb.buf[(ghb_idx_old + i) % GHB_SIZE].delta;
-      prefetches[prefetches_head++] = champsim::address{cl_addr};
+
+      // incrementally add deltas to recover true addr
+      cl_addr += ghb.buf[unsigned_sub(ghb_idx_new, i, GHB_SIZE)].delta;
+      prefetches[prefetches_tail - 1 - i] = champsim::address{cl_addr};
+      // add stride prefetching
+      // cl_addr_tmp = cl_addr;
+      // for (uint8_t j = 0; j < PREFETCH_DEGREE; j++) {
+      //   prefetches[pref_cnt_width] = champsim::address{cl_addr_tmp};
+      //   cl_addr_tmp += ghb.buf[(ghb_idx_old + i) % GHB_SIZE].delta;
+      // }
       // fprintf(stderr, "test: %ld\r\n",
       //         champsim::address{champsim::block_number{0} +
       //                           champsim::block_number::difference_type{1}});
       // std::abort();
     }
-    // TODO: what happens when pref_cnt_width == counter
-    if (pref_cnt_width <= counter) {
+
+    // TODO: reorder this logic to make it more readable
+    if (ghb_tmp <= counter) {
       cl_addr += ghb.buf[ghb_idx_old].delta;
-      prefetches[prefetches_head++] = champsim::address{cl_addr};
+      prefetches[prefetches_tail - 1] = champsim::address{cl_addr};
+      // cl_addr_tmp = cl_addr;
+      // for (uint8_t j = 0; j < PREFETCH_DEGREE; j++) {
+      //   prefetches[prefetches_head++] = champsim::address{cl_addr_tmp};
+      //   cl_addr_tmp += ghb.buf[ghb_idx_old].delta;
+      // }
     }
     counter -= pref_cnt_width;
     // check next starting point
@@ -103,11 +126,11 @@ ghb_dc::prefetcher_cache_operate(champsim::address addr, champsim::address ip,
 }
 void ghb_dc::prefetcher_cycle_operate() {
   // check if any prefetches available
-  if (prefetches_head == 0)
+  if (prefetches_tail == 0)
     return;
 
   champsim::address old_pf_address{prefetches[0]};
-  for (uint8_t i = 0; i < prefetches_head; i++) {
+  for (uint8_t i = 0; i < prefetches_tail; i++) {
     // If the next step would exceed the degree or run off the page, stop
     if (intern_->virtual_prefetch ||
         champsim::page_number{prefetches[i]} ==
