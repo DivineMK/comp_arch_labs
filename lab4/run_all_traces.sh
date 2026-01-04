@@ -7,11 +7,13 @@ Usage: $0 [OPTIONS]
 Options:
   -b, --binary NAME     Name of ChampSim binary (default: 1C.fullBW.nopref)
   -c, --config NAME     Config name (default: same as binary)
-  -j, --jobs N          Number of parallel jobs (default: nproc)
+  -j, --jobs N          Number of parallel jobs (default: $(nproc) = \$(nproc))
+  -l, --trace-list FILE Path to a text file containing trace patterns to run. Lines starting with '#' are ignored.
   -h, --help            Show this help message
 
 Example:
   $0 -b 1C.fullBW.nopref -c 1C.fullBW.ghb_stride.json -j 8
+  $0 -l traces_to_run.txt # Run traces specified in the list file
 EOF
 }
 
@@ -20,6 +22,7 @@ CONFIG=""
 LOG_SUFFIX=""
 NUM_JOBS="$(nproc)"
 DRY_RUN=0
+TRACE_LIST_FILE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,6 +36,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   -j | --jobs)
     NUM_JOBS="$2"
+    shift 2
+    ;;
+  -l | --trace-list)
+    TRACE_LIST_FILE="$2"
     shift 2
     ;;
   -D | --dry-run)
@@ -56,7 +63,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Path to the ChampSim binary
-PARENT_DIR="$(realpath $(dirname $0))"
+PARENT_DIR="$(realpath "$(dirname "$0")")"
 BIN_NAME="${BIN_NAME:-1C.fullBW.nopref}"
 CONFIG="${CONFIG:-${BIN_NAME}.json}"
 BINARY="${PARENT_DIR}/ChampSim/bin/${BIN_NAME}"
@@ -107,7 +114,7 @@ run_single_trace() {
   log_filebase="$LOG_DIR/${BIN_NAME}${LOG_SUFFIX}_trace_${trace_name}"
   echo "Running trace: $log_filebase"
   # Run the binary with the trace file
-  "$BINARY" --warmup-instructions 10000000 --simulation-instructions 50000000 --json "${log_filebase}.json" -- "$trace_file" 2>&1 >"${log_filebase}.log"
+  "$BINARY" --warmup-instructions 10000000 --simulation-instructions 50000000 --json "${log_filebase}.json" -- "$trace_file" >"${log_filebase}.log"
 
   echo "Finished trace: $log_filebase"
   echo ""
@@ -115,6 +122,23 @@ run_single_trace() {
 
 export -f run_single_trace
 
-find "$TRACE_DIR" -type f -print0 | xargs -0 -P "$NUM_JOBS" -I {} bash -c 'run_single_trace "{}"'
+if [ -n "$TRACE_LIST_FILE" ]; then
+  if [ ! -f "$TRACE_LIST_FILE" ]; then
+    echo "Error: Trace list file not found: $TRACE_LIST_FILE" >&2
+    exit 1
+  fi
+
+  echo "Running traces matching patterns in: $TRACE_LIST_FILE"
+  # 1. Grep removes comments and empty lines
+  # 2. While loop runs find for each pattern
+  # 3. Sort -zu removes duplicate files (handling null terminators)
+  grep -vE '^\s*#|^\s*$' "$TRACE_LIST_FILE" | while read -r pattern; do
+    find "$TRACE_DIR" -type f -name "$pattern" -print0
+  done | sort -zu | xargs -0 -P "$NUM_JOBS" -I {} bash -c 'run_single_trace "{}"'
+
+else
+  echo "Running all traces in $TRACE_DIR"
+  find "$TRACE_DIR" -type f -print0 | xargs -0 -P "$NUM_JOBS" -I {} bash -c 'run_single_trace "{}"'
+fi
 
 echo "All traces processed."
