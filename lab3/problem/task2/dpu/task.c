@@ -109,10 +109,6 @@ int main_kernel1() {
     // Computer vector addition
     //@@ INSERT CALL TO AXPY FUNCTION HERE
     axpy(cacheY, cacheX, alpha, l_size_bytes >> DIV);
-
-#if defined(CYCLES) || defined(INSTRUCTIONS)
-    result->count = counter_stop(&count); // STOP TIMER
-#endif
     // Write cache to current MRAM block
     //@@ INSERT WRAM-MRAM TRANSFER HERE
 #if PRINT
@@ -124,6 +120,10 @@ int main_kernel1() {
     test = perfcounter_get() - start;
 #endif
   }
+
+#if defined(CYCLES) || defined(INSTRUCTIONS)
+  result->count = counter_stop(&count); // STOP TIMER
+#endif
 #if PRINT
   printf("tasklet [%u] iter_cnt: %u\t count: %lu\t test: %lu\r\n", tasklet_id,
          iter_cnt, DPU_RESULTS[tasklet_id].count, test);
